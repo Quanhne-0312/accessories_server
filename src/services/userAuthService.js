@@ -9,17 +9,18 @@ import sequelize from "../config/database";
 
 const handleLogin = async (username, password) => {
     try {
+        const normalizedUsername = typeof username === "string" ? username.trim() : username;
         const user = await db.User.findOne({
             where: {
                 [Op.or]: [
                     {
-                        phone_number: username,
+                        phone_number: normalizedUsername,
                         role_id: {
                             [Op.in]: [1, 2, 4],
                         },
                     },
                     {
-                        email: username,
+                        email: normalizedUsername,
                         role_id: {
                             [Op.in]: [1, 2, 4],
                         },
@@ -29,13 +30,35 @@ const handleLogin = async (username, password) => {
         });
 
         if (!user) {
+            const anyRoleUser = await db.User.findOne({
+                attributes: ["role_id"],
+                where: {
+                    [Op.or]: [
+                        {
+                            phone_number: normalizedUsername,
+                        },
+                        {
+                            email: normalizedUsername,
+                        },
+                    ],
+                },
+                raw: true,
+            });
+
+            if (anyRoleUser && Number(anyRoleUser.role_id) === 3) {
+                return {
+                    code: ResponseCode.AUTHENTICATION_ERROR,
+                    message: "Tài khoản này thuộc trang cửa hàng, vui lòng đăng nhập ở store.",
+                };
+            }
+
             return {
                 code: ResponseCode.AUTHENTICATION_ERROR,
                 message: "Incorrect Username or Password",
             };
         }
 
-        const isValidPassword = bcrypt.compareSync(password, user.password);
+        const isValidPassword = await verifyPasswordAndUpgrade(user, password);
 
         if (!isValidPassword) {
             return {
@@ -337,47 +360,51 @@ const handleUpdateProfile = async (profile) => {
     }
 };
 
-let handleChangePassword = (username, password, newPassword) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            let user = await db.User.findOne({
-                where: { username: username },
-                raw: true,
-            });
-
-            if (!user) {
-                resolve({
-                    code: ResponseCode.AUTHENTICATION_ERROR,
-                    message: "Incorrect username or password",
-                });
-            }
-
-            let isValidPassword = bcrypt.compareSync(password, user.password);
-
-            if (!isValidPassword) {
-                resolve({
-                    code: ResponseCode.AUTHENTICATION_ERROR,
-                    message: "Incorrect username or password",
-                });
-            } else {
-                let hashedPassword = hashPassword(newPassword);
-                await db.User.update(
+let handleChangePassword = async (username, password, newPassword) => {
+    try {
+        const normalizedUsername = typeof username === "string" ? username.trim() : username;
+        const user = await db.User.findOne({
+            where: {
+                [Op.or]: [
                     {
-                        password: hashedPassword,
+                        phone_number: normalizedUsername,
                     },
                     {
-                        where: { username: username },
+                        email: normalizedUsername,
                     },
-                );
-                resolve({
-                    code: ResponseCode.SUCCESS,
-                    message: "Password has been changed.",
-                });
-            }
-        } catch (error) {
-            reject(error);
+                ],
+            },
+        });
+
+        if (!user || !(await verifyPasswordAndUpgrade(user, password))) {
+            return {
+                code: ResponseCode.AUTHENTICATION_ERROR,
+                message: "Incorrect username or password",
+            };
         }
-    });
+
+        await db.User.update(
+            {
+                password: hashPassword(newPassword),
+            },
+            {
+                where: {
+                    id: user.id,
+                },
+            },
+        );
+
+        return {
+            code: ResponseCode.SUCCESS,
+            message: "Password has been changed.",
+        };
+    } catch (error) {
+        console.log(error);
+        return {
+            code: ResponseCode.INTERNAL_SERVER_ERROR,
+            message: "Error occurs, check again!",
+        };
+    }
 };
 
 const handleRegister = async (user) => {
@@ -439,6 +466,33 @@ const handleRegister = async (user) => {
 let hashPassword = (password) => {
     const salt = bcrypt.genSaltSync(10);
     return bcrypt.hashSync(password, salt);
+};
+
+const isBcryptHash = (password) => {
+    return typeof password === "string" && /^\$2[aby]\$\d{2}\$/.test(password);
+};
+
+const verifyPasswordAndUpgrade = async (user, password) => {
+    if (isBcryptHash(user.password)) {
+        return bcrypt.compareSync(password, user.password);
+    }
+
+    if (user.password !== password) {
+        return false;
+    }
+
+    await db.User.update(
+        {
+            password: hashPassword(password),
+        },
+        {
+            where: {
+                id: user.id,
+            },
+        },
+    );
+
+    return true;
 };
 
 const handleConvertAddressType = (address) => {

@@ -26,44 +26,69 @@ var _require = require("sequelize"),
 
 var handleLogin = /*#__PURE__*/function () {
   var _ref = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee(username, password) {
-    var user, _isValidPassword, avatar, accessToken, refreshToken, userData;
+    var normalizedUsername, user, anyRoleUser, _isValidPassword, avatar, accessToken, refreshToken, userData;
     return _regeneratorRuntime().wrap(function _callee$(_context) {
       while (1) {
         switch (_context.prev = _context.next) {
           case 0:
             _context.prev = 0;
-            _context.next = 3;
+            normalizedUsername = normalizeUsername(username);
+            _context.next = 4;
             return _models["default"].User.findOne({
               where: _defineProperty({}, Op.or, [{
-                phone_number: username,
+                phone_number: normalizedUsername,
                 role_id: 3
               }, {
-                email: username,
+                email: normalizedUsername,
                 role_id: 3
               }])
             });
-          case 3:
+          case 4:
             user = _context.sent;
             if (user) {
-              _context.next = 6;
+              _context.next = 12;
+              break;
+            }
+            _context.next = 8;
+            return _models["default"].User.findOne({
+              attributes: ["role_id"],
+              where: _defineProperty({}, Op.or, [{
+                phone_number: normalizedUsername
+              }, {
+                email: normalizedUsername
+              }]),
+              raw: true
+            });
+          case 8:
+            anyRoleUser = _context.sent;
+            if (!(anyRoleUser && Number(anyRoleUser.role_id) !== 3)) {
+              _context.next = 11;
               break;
             }
             return _context.abrupt("return", {
               code: _constant.ResponseCode.AUTHENTICATION_ERROR,
+              message: "Tài khoản này thuộc trang quản trị, vui lòng đăng nhập ở admin."
+            });
+          case 11:
+            return _context.abrupt("return", {
+              code: _constant.ResponseCode.AUTHENTICATION_ERROR,
               message: "Incorrect Username or Password"
             });
-          case 6:
-            _isValidPassword = _bcryptjs["default"].compareSync(password, user.password);
+          case 12:
+            _context.next = 14;
+            return verifyPasswordAndUpgrade(user, password);
+          case 14:
+            _isValidPassword = _context.sent;
             if (_isValidPassword) {
-              _context.next = 9;
+              _context.next = 17;
               break;
             }
             return _context.abrupt("return", {
               code: _constant.ResponseCode.AUTHENTICATION_ERROR,
               message: "Incorrect Username or Password"
             });
-          case 9:
-            _context.next = 11;
+          case 17:
+            _context.next = 19;
             return _models["default"].Image.findOne({
               attributes: {
                 exclude: ["id", "target_id", "target_type"]
@@ -73,12 +98,12 @@ var handleLogin = /*#__PURE__*/function () {
                 target_type: "avatar"
               }
             });
-          case 11:
+          case 19:
             avatar = _context.sent;
             accessToken = handleGenerateAccessToken(user);
-            _context.next = 15;
+            _context.next = 23;
             return handleGenerateRefreshToken(user);
-          case 15:
+          case 23:
             refreshToken = _context.sent;
             userData = toPlainObject(user);
             delete userData.password;
@@ -91,20 +116,20 @@ var handleLogin = /*#__PURE__*/function () {
               accessToken: accessToken,
               refreshToken: refreshToken
             });
-          case 21:
-            _context.prev = 21;
+          case 29:
+            _context.prev = 29;
             _context.t0 = _context["catch"](0);
             console.log(_context.t0);
             return _context.abrupt("return", {
               code: _constant.ResponseCode.INTERNAL_SERVER_ERROR,
               message: "Error occurs, check again!"
             });
-          case 25:
+          case 33:
           case "end":
             return _context.stop();
         }
       }
-    }, _callee, null, [[0, 21]]);
+    }, _callee, null, [[0, 29]]);
   }));
   return function handleLogin(_x, _x2) {
     return _ref.apply(this, arguments);
@@ -112,74 +137,78 @@ var handleLogin = /*#__PURE__*/function () {
 }();
 var handleRegister = /*#__PURE__*/function () {
   var _ref2 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee2(user) {
-    var _user$name, existedUser, hashedPassword, createdUser, createdUserData, accessToken, refreshToken;
+    var _user$name, normalizedUser, existedUser, hashedPassword, createdUser, createdUserData, accessToken, refreshToken;
     return _regeneratorRuntime().wrap(function _callee2$(_context2) {
       while (1) {
         switch (_context2.prev = _context2.next) {
           case 0:
             _context2.prev = 0;
+            normalizedUser = _objectSpread(_objectSpread({}, user), {}, {
+              phone_number: typeof user.phone_number === "string" ? user.phone_number.trim() : user.phone_number,
+              email: typeof user.email === "string" ? user.email.trim().toLowerCase() : user.email
+            });
             if (isValidPassword(user.password)) {
-              _context2.next = 3;
+              _context2.next = 4;
               break;
             }
             return _context2.abrupt("return", {
               code: _constant.ResponseCode.VALIDATION_ERROR,
               message: "Password must be longer than 6 characters, start with an uppercase letter and contain a number."
             });
-          case 3:
-            _context2.next = 5;
+          case 4:
+            _context2.next = 6;
             return _models["default"].User.findOne({
               where: _defineProperty({}, Op.or, [{
-                phone_number: user.phone_number
+                phone_number: normalizedUser.phone_number
               }, {
-                email: user.email
+                email: normalizedUser.email
               }])
             });
-          case 5:
+          case 6:
             existedUser = _context2.sent;
             if (!existedUser) {
-              _context2.next = 8;
+              _context2.next = 9;
               break;
             }
             return _context2.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "Phone number or email already in use."
             });
-          case 8:
+          case 9:
             if (_lodash["default"].isEqual(user.password, user.confirm_password)) {
-              _context2.next = 10;
+              _context2.next = 11;
               break;
             }
             return _context2.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "Confirm password do not match."
             });
-          case 10:
+          case 11:
             hashedPassword = hashPassword(user.password);
-            _context2.next = 13;
+            _context2.next = 14;
             return _models["default"].User.create({
-              phone_number: user.phone_number,
-              email: user.email,
+              phone_number: normalizedUser.phone_number,
+              email: normalizedUser.email,
               password: hashedPassword,
-              name: (_user$name = user.name) !== null && _user$name !== void 0 ? _user$name : user.phone_number,
+              name: (_user$name = user.name) !== null && _user$name !== void 0 ? _user$name : normalizedUser.phone_number,
               address: user.address,
               last_login: null,
               birth: null,
               role_id: 3,
               bio: null
             });
-          case 13:
+          case 14:
             createdUser = _context2.sent;
             if (!createdUser) {
-              _context2.next = 22;
+              _context2.next = 23;
               break;
             }
             createdUserData = toPlainObject(createdUser);
             delete createdUserData.password;
             accessToken = handleGenerateAccessToken(createdUserData);
-            _context2.next = 20;
+            _context2.next = 21;
             return handleGenerateRefreshToken(createdUserData);
-          case 20:
+          case 21:
             refreshToken = _context2.sent;
             return _context2.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
@@ -188,25 +217,25 @@ var handleRegister = /*#__PURE__*/function () {
               accessToken: accessToken,
               refreshToken: refreshToken
             });
-          case 22:
+          case 23:
             return _context2.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "Register unsuccessfully."
             });
-          case 25:
-            _context2.prev = 25;
+          case 26:
+            _context2.prev = 26;
             _context2.t0 = _context2["catch"](0);
             console.log(_context2.t0);
             return _context2.abrupt("return", {
               code: _constant.ResponseCode.INTERNAL_SERVER_ERROR,
               message: "Error occurs, check again!"
             });
-          case 29:
+          case 30:
           case "end":
             return _context2.stop();
         }
       }
-    }, _callee2, null, [[0, 25]]);
+    }, _callee2, null, [[0, 26]]);
   }));
   return function handleRegister(_x3) {
     return _ref2.apply(this, arguments);
@@ -481,25 +510,35 @@ var handleChangePassword = /*#__PURE__*/function () {
             });
           case 3:
             user = _context7.sent;
-            if (!(!user || !_bcryptjs["default"].compareSync(password, user.password))) {
-              _context7.next = 6;
+            _context7.t0 = !user;
+            if (_context7.t0) {
+              _context7.next = 9;
+              break;
+            }
+            _context7.next = 8;
+            return verifyPasswordAndUpgrade(user, password);
+          case 8:
+            _context7.t0 = !_context7.sent;
+          case 9:
+            if (!_context7.t0) {
+              _context7.next = 11;
               break;
             }
             return _context7.abrupt("return", {
               code: _constant.ResponseCode.AUTHENTICATION_ERROR,
               message: "Incorrect phone number or password."
             });
-          case 6:
+          case 11:
             if (isValidPassword(newPassword)) {
-              _context7.next = 8;
+              _context7.next = 13;
               break;
             }
             return _context7.abrupt("return", {
               code: _constant.ResponseCode.VALIDATION_ERROR,
               message: "Password must be longer than 6 characters, start with an uppercase letter and contain a number."
             });
-          case 8:
-            _context7.next = 10;
+          case 13:
+            _context7.next = 15;
             return _models["default"].User.update({
               password: hashPassword(newPassword)
             }, {
@@ -507,25 +546,25 @@ var handleChangePassword = /*#__PURE__*/function () {
                 id: user.id
               }
             });
-          case 10:
+          case 15:
             return _context7.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Password has been changed."
             });
-          case 13:
-            _context7.prev = 13;
-            _context7.t0 = _context7["catch"](0);
-            console.log(_context7.t0);
+          case 18:
+            _context7.prev = 18;
+            _context7.t1 = _context7["catch"](0);
+            console.log(_context7.t1);
             return _context7.abrupt("return", {
               code: _constant.ResponseCode.INTERNAL_SERVER_ERROR,
               message: "Error occurs, check again!"
             });
-          case 17:
+          case 22:
           case "end":
             return _context7.stop();
         }
       }
-    }, _callee7, null, [[0, 13]]);
+    }, _callee7, null, [[0, 18]]);
   }));
   return function handleChangePassword(_x9, _x10, _x11) {
     return _ref7.apply(this, arguments);
@@ -653,8 +692,54 @@ var hashPassword = function hashPassword(password) {
   var salt = _bcryptjs["default"].genSaltSync(10);
   return _bcryptjs["default"].hashSync(password, salt);
 };
+var isBcryptHash = function isBcryptHash(password) {
+  return typeof password === "string" && /^\$2[aby]\$\d{2}\$/.test(password);
+};
+var verifyPasswordAndUpgrade = /*#__PURE__*/function () {
+  var _ref10 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee10(user, password) {
+    return _regeneratorRuntime().wrap(function _callee10$(_context10) {
+      while (1) {
+        switch (_context10.prev = _context10.next) {
+          case 0:
+            if (!isBcryptHash(user.password)) {
+              _context10.next = 2;
+              break;
+            }
+            return _context10.abrupt("return", _bcryptjs["default"].compareSync(password, user.password));
+          case 2:
+            if (!(user.password !== password)) {
+              _context10.next = 4;
+              break;
+            }
+            return _context10.abrupt("return", false);
+          case 4:
+            _context10.next = 6;
+            return _models["default"].User.update({
+              password: hashPassword(password)
+            }, {
+              where: {
+                id: user.id
+              }
+            });
+          case 6:
+            return _context10.abrupt("return", true);
+          case 7:
+          case "end":
+            return _context10.stop();
+        }
+      }
+    }, _callee10);
+  }));
+  return function verifyPasswordAndUpgrade(_x15, _x16) {
+    return _ref10.apply(this, arguments);
+  };
+}();
 var isValidPassword = function isValidPassword(password) {
   return typeof password === "string" && /^(?=.*\d)[A-Z].{6,}$/.test(password);
+};
+var normalizeUsername = function normalizeUsername(username) {
+  var value = typeof username === "string" ? username.trim() : username;
+  return typeof value === "string" && value.includes("@") ? value.toLowerCase() : value;
 };
 var toPlainObject = function toPlainObject(data) {
   return typeof data.get === "function" ? data.get({

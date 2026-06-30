@@ -10,15 +10,16 @@ import _ from "lodash";
 
 const handleLogin = async (username, password) => {
     try {
+        const normalizedUsername = normalizeUsername(username);
         const user = await db.User.findOne({
             where: {
                 [Op.or]: [
                     {
-                        phone_number: username,
+                        phone_number: normalizedUsername,
                         role_id: 3,
                     },
                     {
-                        email: username,
+                        email: normalizedUsername,
                         role_id: 3,
                     },
                 ],
@@ -26,13 +27,35 @@ const handleLogin = async (username, password) => {
         });
 
         if (!user) {
+            const anyRoleUser = await db.User.findOne({
+                attributes: ["role_id"],
+                where: {
+                    [Op.or]: [
+                        {
+                            phone_number: normalizedUsername,
+                        },
+                        {
+                            email: normalizedUsername,
+                        },
+                    ],
+                },
+                raw: true,
+            });
+
+            if (anyRoleUser && Number(anyRoleUser.role_id) !== 3) {
+                return {
+                    code: ResponseCode.AUTHENTICATION_ERROR,
+                    message: "Tài khoản này thuộc trang quản trị, vui lòng đăng nhập ở admin.",
+                };
+            }
+
             return {
                 code: ResponseCode.AUTHENTICATION_ERROR,
                 message: "Incorrect Username or Password",
             };
         }
 
-        const isValidPassword = bcrypt.compareSync(password, user.password);
+        const isValidPassword = await verifyPasswordAndUpgrade(user, password);
 
         if (!isValidPassword) {
             return {
@@ -79,6 +102,12 @@ const handleLogin = async (username, password) => {
 
 const handleRegister = async (user) => {
     try {
+        const normalizedUser = {
+            ...user,
+            phone_number: typeof user.phone_number === "string" ? user.phone_number.trim() : user.phone_number,
+            email: typeof user.email === "string" ? user.email.trim().toLowerCase() : user.email,
+        };
+
         if (!isValidPassword(user.password)) {
             return {
                 code: ResponseCode.VALIDATION_ERROR,
@@ -90,10 +119,10 @@ const handleRegister = async (user) => {
             where: {
                 [Op.or]: [
                     {
-                        phone_number: user.phone_number,
+                        phone_number: normalizedUser.phone_number,
                     },
                     {
-                        email: user.email,
+                        email: normalizedUser.email,
                     },
                 ],
             },
@@ -115,10 +144,10 @@ const handleRegister = async (user) => {
 
         const hashedPassword = hashPassword(user.password);
         const createdUser = await db.User.create({
-            phone_number: user.phone_number,
-            email: user.email,
+            phone_number: normalizedUser.phone_number,
+            email: normalizedUser.email,
             password: hashedPassword,
-            name: user.name ?? user.phone_number,
+            name: user.name ?? normalizedUser.phone_number,
             address: user.address,
             last_login: null,
             birth: null,
@@ -320,7 +349,7 @@ const handleChangePassword = async (phoneNumber, password, newPassword) => {
             },
         });
 
-        if (!user || !bcrypt.compareSync(password, user.password)) {
+        if (!user || !(await verifyPasswordAndUpgrade(user, password))) {
             return {
                 code: ResponseCode.AUTHENTICATION_ERROR,
                 message: "Incorrect phone number or password.",
@@ -450,8 +479,40 @@ let hashPassword = (password) => {
     return bcrypt.hashSync(password, salt);
 };
 
+const isBcryptHash = (password) => {
+    return typeof password === "string" && /^\$2[aby]\$\d{2}\$/.test(password);
+};
+
+const verifyPasswordAndUpgrade = async (user, password) => {
+    if (isBcryptHash(user.password)) {
+        return bcrypt.compareSync(password, user.password);
+    }
+
+    if (user.password !== password) {
+        return false;
+    }
+
+    await db.User.update(
+        {
+            password: hashPassword(password),
+        },
+        {
+            where: {
+                id: user.id,
+            },
+        },
+    );
+
+    return true;
+};
+
 const isValidPassword = (password) => {
     return typeof password === "string" && /^(?=.*\d)[A-Z].{6,}$/.test(password);
+};
+
+const normalizeUsername = (username) => {
+    const value = typeof username === "string" ? username.trim() : username;
+    return typeof value === "string" && value.includes("@") ? value.toLowerCase() : value;
 };
 
 const toPlainObject = (data) => {

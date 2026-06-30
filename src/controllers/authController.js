@@ -90,9 +90,10 @@ let changeUserPassword = async (req, res) => {
 
 let customerLogin = async (req, res) => {
     const { username, password } = req.body;
+    const normalizedUsername = typeof username === "string" ? username.trim() : username;
 
-    if (username && password) {
-        const data = await customerAuthService.handleLogin(username, password);
+    if (normalizedUsername && password) {
+        const data = await customerAuthService.handleLogin(normalizedUsername, password);
         return res.status(200).json(data);
     }
 

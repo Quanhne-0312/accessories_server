@@ -195,27 +195,28 @@ var changeUserPassword = /*#__PURE__*/function () {
 
 var customerLogin = /*#__PURE__*/function () {
   var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6(req, res) {
-    var _req$body3, username, password, data;
+    var _req$body3, username, password, normalizedUsername, data;
     return _regeneratorRuntime().wrap(function _callee6$(_context6) {
       while (1) {
         switch (_context6.prev = _context6.next) {
           case 0:
             _req$body3 = req.body, username = _req$body3.username, password = _req$body3.password;
-            if (!(username && password)) {
-              _context6.next = 6;
+            normalizedUsername = typeof username === "string" ? username.trim() : username;
+            if (!(normalizedUsername && password)) {
+              _context6.next = 7;
               break;
             }
-            _context6.next = 4;
-            return customerAuthService.handleLogin(username, password);
-          case 4:
+            _context6.next = 5;
+            return customerAuthService.handleLogin(normalizedUsername, password);
+          case 5:
             data = _context6.sent;
             return _context6.abrupt("return", res.status(200).json(data));
-          case 6:
+          case 7:
             return _context6.abrupt("return", res.status(400).json({
               code: ResponseCode.MISSING_PARAMETER,
               message: "Missing parameter(s). Check again."
             }));
-          case 7:
+          case 8:
           case "end":
             return _context6.stop();
         }
