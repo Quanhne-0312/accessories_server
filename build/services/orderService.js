@@ -1,6 +1,5 @@
 "use strict";
 
-function _typeof(obj) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (obj) { return typeof obj; } : function (obj) { return obj && "function" == typeof Symbol && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }, _typeof(obj); }
 var _models = _interopRequireDefault(require("../models"));
 var _constant = require("../constant");
 var _database = _interopRequireDefault(require("../config/database"));
@@ -10,14 +9,15 @@ var _excluded = ["id", "shipping_address_id", "payment_method_id", "status_id"],
   _excluded3 = ["id", "shipping_address_id", "payment_method_id", "status_id"],
   _excluded4 = ["id", "shipping_address_id", "payment_method_id", "status_id"];
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+function _typeof(obj) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (obj) { return typeof obj; } : function (obj) { return obj && "function" == typeof Symbol && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }, _typeof(obj); }
 function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) return Array.from(iter); }
 function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
-function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
-function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
 function _objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = _objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
 function _objectWithoutPropertiesLoose(source, excluded) { if (source == null) return {}; var target = {}; var sourceKeys = Object.keys(source); var key, i; for (i = 0; i < sourceKeys.length; i++) { key = sourceKeys[i]; if (excluded.indexOf(key) >= 0) continue; target[key] = source[key]; } return target; }
+function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
+function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest(); }
 function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
@@ -113,26 +113,79 @@ var handleGetOrderStatuses = /*#__PURE__*/function () {
     return _ref2.apply(this, arguments);
   };
 }();
-var handleGetAllOrders = /*#__PURE__*/function () {
-  var _ref3 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee3(status_id, page, keyword) {
-    var t, currentPage, normalizedKeyword, where, _yield$Promise$all, _yield$Promise$all2, shippingAddressesMatched, orderDetailsMatched, matchedShippingAddressIds, matchedOrderUuids, keywordFilter, _yield$db$Order$findA, count, orders, _yield$Promise$all3, _yield$Promise$all4, orderDetails, shippingAddresses, paymentMethods, orderStatuses, result;
+var handleCountOrders = /*#__PURE__*/function () {
+  var _ref3 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee3() {
+    var _yield$Promise$all, _yield$Promise$all2, statuses, orders, result;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) {
         switch (_context3.prev = _context3.next) {
           case 0:
+            _context3.prev = 0;
+            _context3.next = 3;
+            return Promise.all([_models["default"].Status.findAll({
+              order: [["id", "ASC"]],
+              raw: true
+            }), _models["default"].Order.findAll({
+              attributes: ["status_id"],
+              raw: true
+            })]);
+          case 3:
+            _yield$Promise$all = _context3.sent;
+            _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 2);
+            statuses = _yield$Promise$all2[0];
+            orders = _yield$Promise$all2[1];
+            result = statuses.map(function (status) {
+              return _objectSpread(_objectSpread({}, status), {}, {
+                slug: status.code,
+                order_count: orders.filter(function (order) {
+                  return Number(order.status_id) === Number(status.id);
+                }).length
+              });
+            });
+            return _context3.abrupt("return", {
+              code: _constant.ResponseCode.SUCCESS,
+              message: "Retrieved orders count successfully",
+              result: result
+            });
+          case 11:
+            _context3.prev = 11;
+            _context3.t0 = _context3["catch"](0);
+            console.log(_context3.t0);
+            return _context3.abrupt("return", {
+              code: _constant.ResponseCode.DATABASE_ERROR,
+              message: "An error occurred while counting orders."
+            });
+          case 15:
+          case "end":
+            return _context3.stop();
+        }
+      }
+    }, _callee3, null, [[0, 11]]);
+  }));
+  return function handleCountOrders() {
+    return _ref3.apply(this, arguments);
+  };
+}();
+var handleGetAllOrders = /*#__PURE__*/function () {
+  var _ref4 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee4(status_id, page, keyword) {
+    var t, currentPage, normalizedKeyword, where, _yield$Promise$all3, _yield$Promise$all4, shippingAddressesMatched, orderDetailsMatched, matchedShippingAddressIds, matchedOrderUuids, keywordFilter, _yield$db$Order$findA, count, orders, _yield$Promise$all5, _yield$Promise$all6, orderDetails, shippingAddresses, paymentMethods, orderStatuses, result;
+    return _regeneratorRuntime().wrap(function _callee4$(_context4) {
+      while (1) {
+        switch (_context4.prev = _context4.next) {
+          case 0:
             t = _database["default"].transaction();
             currentPage = page && !_lodash["default"].isNaN(page) ? page : 1;
-            _context3.prev = 2;
+            _context4.prev = 2;
             normalizedKeyword = "".concat(keyword || "").trim();
             where = {};
             if (status_id && status_id !== "all") {
               where.status_id = status_id;
             }
             if (!normalizedKeyword) {
-              _context3.next = 20;
+              _context4.next = 20;
               break;
             }
-            _context3.next = 9;
+            _context4.next = 9;
             return Promise.all([_models["default"].ShippingAddress.findAll({
               attributes: ["id"],
               where: _defineProperty({}, Op.or, [{
@@ -151,10 +204,10 @@ var handleGetAllOrders = /*#__PURE__*/function () {
               }])
             })]);
           case 9:
-            _yield$Promise$all = _context3.sent;
-            _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 2);
-            shippingAddressesMatched = _yield$Promise$all2[0];
-            orderDetailsMatched = _yield$Promise$all2[1];
+            _yield$Promise$all3 = _context4.sent;
+            _yield$Promise$all4 = _slicedToArray(_yield$Promise$all3, 2);
+            shippingAddressesMatched = _yield$Promise$all4[0];
+            orderDetailsMatched = _yield$Promise$all4[1];
             matchedShippingAddressIds = shippingAddressesMatched.map(function (address) {
               return address.id;
             });
@@ -185,7 +238,7 @@ var handleGetAllOrders = /*#__PURE__*/function () {
             }
             where[Op.or] = keywordFilter;
           case 20:
-            _context3.next = 22;
+            _context4.next = 22;
             return _models["default"].Order.findAndCountAll({
               where: where,
               order: [["id", "DESC"]],
@@ -193,14 +246,14 @@ var handleGetAllOrders = /*#__PURE__*/function () {
               offset: (currentPage - 1) * 12
             });
           case 22:
-            _yield$db$Order$findA = _context3.sent;
+            _yield$db$Order$findA = _context4.sent;
             count = _yield$db$Order$findA.count;
             orders = _yield$db$Order$findA.rows;
             if (!(count > 0)) {
-              _context3.next = 36;
+              _context4.next = 36;
               break;
             }
-            _context3.next = 28;
+            _context4.next = 28;
             return Promise.all([_models["default"].OrderDetail.findAll({
               where: {
                 order_uuid: orders.map(function (order) {
@@ -215,12 +268,12 @@ var handleGetAllOrders = /*#__PURE__*/function () {
               }
             }), _models["default"].PaymentMethod.findAll(), _models["default"].Status.findAll()]);
           case 28:
-            _yield$Promise$all3 = _context3.sent;
-            _yield$Promise$all4 = _slicedToArray(_yield$Promise$all3, 4);
-            orderDetails = _yield$Promise$all4[0];
-            shippingAddresses = _yield$Promise$all4[1];
-            paymentMethods = _yield$Promise$all4[2];
-            orderStatuses = _yield$Promise$all4[3];
+            _yield$Promise$all5 = _context4.sent;
+            _yield$Promise$all6 = _slicedToArray(_yield$Promise$all5, 4);
+            orderDetails = _yield$Promise$all6[0];
+            shippingAddresses = _yield$Promise$all6[1];
+            paymentMethods = _yield$Promise$all6[2];
+            orderStatuses = _yield$Promise$all6[3];
             result = orders.map(function (order) {
               var id = order.id,
                 shipping_address_id = order.shipping_address_id,
@@ -246,7 +299,7 @@ var handleGetAllOrders = /*#__PURE__*/function () {
                 payment_method: paymentMethod
               });
             });
-            return _context3.abrupt("return", {
+            return _context4.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Retrieved orders successfully",
               page: currentPage,
@@ -255,7 +308,7 @@ var handleGetAllOrders = /*#__PURE__*/function () {
               result: result
             });
           case 36:
-            return _context3.abrupt("return", {
+            return _context4.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Orders not found.",
               page: currentPage,
@@ -264,33 +317,33 @@ var handleGetAllOrders = /*#__PURE__*/function () {
               result: []
             });
           case 39:
-            _context3.prev = 39;
-            _context3.t0 = _context3["catch"](2);
-            console.log(_context3.t0);
-            return _context3.abrupt("return", {
+            _context4.prev = 39;
+            _context4.t0 = _context4["catch"](2);
+            console.log(_context4.t0);
+            return _context4.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "An error occurred while retrieving the orders."
             });
           case 43:
           case "end":
-            return _context3.stop();
+            return _context4.stop();
         }
       }
-    }, _callee3, null, [[2, 39]]);
+    }, _callee4, null, [[2, 39]]);
   }));
   return function handleGetAllOrders(_x, _x2, _x3) {
-    return _ref3.apply(this, arguments);
+    return _ref4.apply(this, arguments);
   };
 }();
 var handleGetOneOrderByUuid = /*#__PURE__*/function () {
-  var _ref4 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee4(order_uuid) {
-    var order, id, shipping_address_id, payment_method_id, status_id, rest, _yield$Promise$all5, _yield$Promise$all6, order_status, order_details, shipping_address, payment_method, history;
-    return _regeneratorRuntime().wrap(function _callee4$(_context4) {
+  var _ref5 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee5(order_uuid) {
+    var order, id, shipping_address_id, payment_method_id, status_id, rest, _yield$Promise$all7, _yield$Promise$all8, order_status, order_details, shipping_address, payment_method, history;
+    return _regeneratorRuntime().wrap(function _callee5$(_context5) {
       while (1) {
-        switch (_context4.prev = _context4.next) {
+        switch (_context5.prev = _context5.next) {
           case 0:
-            _context4.prev = 0;
-            _context4.next = 3;
+            _context5.prev = 0;
+            _context5.next = 3;
             return _models["default"].Order.findOne({
               where: {
                 order_uuid: order_uuid
@@ -298,13 +351,13 @@ var handleGetOneOrderByUuid = /*#__PURE__*/function () {
               raw: true
             });
           case 3:
-            order = _context4.sent;
+            order = _context5.sent;
             if (!order) {
-              _context4.next = 16;
+              _context5.next = 16;
               break;
             }
             id = order.id, shipping_address_id = order.shipping_address_id, payment_method_id = order.payment_method_id, status_id = order.status_id, rest = _objectWithoutProperties(order, _excluded2);
-            _context4.next = 8;
+            _context5.next = 8;
             return Promise.all([_models["default"].Status.findOne({
               where: {
                 id: status_id
@@ -333,14 +386,14 @@ var handleGetOneOrderByUuid = /*#__PURE__*/function () {
               raw: true
             })]);
           case 8:
-            _yield$Promise$all5 = _context4.sent;
-            _yield$Promise$all6 = _slicedToArray(_yield$Promise$all5, 5);
-            order_status = _yield$Promise$all6[0];
-            order_details = _yield$Promise$all6[1];
-            shipping_address = _yield$Promise$all6[2];
-            payment_method = _yield$Promise$all6[3];
-            history = _yield$Promise$all6[4];
-            return _context4.abrupt("return", {
+            _yield$Promise$all7 = _context5.sent;
+            _yield$Promise$all8 = _slicedToArray(_yield$Promise$all7, 5);
+            order_status = _yield$Promise$all8[0];
+            order_details = _yield$Promise$all8[1];
+            shipping_address = _yield$Promise$all8[2];
+            payment_method = _yield$Promise$all8[3];
+            history = _yield$Promise$all8[4];
+            return _context5.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Retrieved order ".concat(order_uuid, " successfully"),
               result: _objectSpread(_objectSpread({}, rest), {}, {
@@ -352,171 +405,53 @@ var handleGetOneOrderByUuid = /*#__PURE__*/function () {
               })
             });
           case 16:
-            return _context4.abrupt("return", {
+            return _context5.abrupt("return", {
               code: _constant.ResponseCode.FILE_NOT_FOUND,
               message: "Order ".concat(order_uuid, " not found.")
             });
           case 19:
-            _context4.prev = 19;
-            _context4.t0 = _context4["catch"](0);
-            console.log(_context4.t0);
-            return _context4.abrupt("return", {
+            _context5.prev = 19;
+            _context5.t0 = _context5["catch"](0);
+            console.log(_context5.t0);
+            return _context5.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "An error occurred while retrieving the order."
             });
           case 23:
           case "end":
-            return _context4.stop();
-        }
-      }
-    }, _callee4, null, [[0, 19]]);
-  }));
-  return function handleGetOneOrderByUuid(_x4) {
-    return _ref4.apply(this, arguments);
-  };
-}();
-var handleGetOrdersByUuids = /*#__PURE__*/function () {
-  var _ref5 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee5(encodedUuids) {
-    var t, decodedUuids, uuids, orders, _yield$Promise$all7, _yield$Promise$all8, orderDetails, orderStatuses, shippingAddresses, paymentMethods, result;
-    return _regeneratorRuntime().wrap(function _callee5$(_context5) {
-      while (1) {
-        switch (_context5.prev = _context5.next) {
-          case 0:
-            t = _database["default"].transaction();
-            _context5.prev = 1;
-            decodedUuids = decodeURIComponent(encodedUuids);
-            if (!_lodash["default"].isEmpty(decodedUuids)) {
-              _context5.next = 5;
-              break;
-            }
-            return _context5.abrupt("return", {
-              code: _constant.ResponseCode.FILE_NOT_FOUND,
-              message: "Orders not found."
-            });
-          case 5:
-            uuids = decodedUuids.split(",");
-            _context5.next = 8;
-            return _models["default"].Order.findAll({
-              where: {
-                order_uuid: uuids
-              }
-            });
-          case 8:
-            orders = _context5.sent;
-            if (!(orders.length > 0)) {
-              _context5.next = 20;
-              break;
-            }
-            _context5.next = 12;
-            return Promise.all([_models["default"].OrderDetail.findAll({
-              where: {
-                order_uuid: uuids
-              }
-            }), _models["default"].Status.findAll({
-              where: {
-                id: orders.map(function (order) {
-                  return order.status_id;
-                })
-              }
-            }), _models["default"].ShippingAddress.findAll({
-              where: {
-                id: orders.map(function (order) {
-                  return order.shipping_address_id;
-                })
-              }
-            }), _models["default"].PaymentMethod.findAll({
-              where: {
-                id: orders.map(function (order) {
-                  return order.payment_method_id;
-                })
-              }
-            })]);
-          case 12:
-            _yield$Promise$all7 = _context5.sent;
-            _yield$Promise$all8 = _slicedToArray(_yield$Promise$all7, 4);
-            orderDetails = _yield$Promise$all8[0];
-            orderStatuses = _yield$Promise$all8[1];
-            shippingAddresses = _yield$Promise$all8[2];
-            paymentMethods = _yield$Promise$all8[3];
-            result = orders.map(function (order) {
-              var id = order.id,
-                shipping_address_id = order.shipping_address_id,
-                payment_method_id = order.payment_method_id,
-                status_id = order.status_id,
-                rest = _objectWithoutProperties(order, _excluded3);
-              var orderStatus = orderStatuses.find(function (status) {
-                return status.id === status_id;
-              });
-              var orderDetail = orderDetails.filter(function (detail) {
-                return detail.order_uuid === order.order_uuid;
-              });
-              var shippingAddress = shippingAddresses.find(function (address) {
-                return address.id === shipping_address_id;
-              });
-              var paymentMethod = paymentMethods.find(function (method) {
-                return method.id === payment_method_id;
-              });
-              return _objectSpread(_objectSpread({}, rest), {}, {
-                status: orderStatus,
-                items: orderDetail,
-                shipping_address: shippingAddress,
-                payment_method: paymentMethod
-              });
-            });
-            return _context5.abrupt("return", {
-              code: _constant.ResponseCode.SUCCESS,
-              message: "Retrieved orders successfully",
-              result: result
-            });
-          case 20:
-            return _context5.abrupt("return", {
-              code: _constant.ResponseCode.FILE_NOT_FOUND,
-              message: "Orders not found."
-            });
-          case 23:
-            _context5.prev = 23;
-            _context5.t0 = _context5["catch"](1);
-            console.log(_context5.t0);
-            return _context5.abrupt("return", {
-              code: _constant.ResponseCode.DATABASE_ERROR,
-              message: "An error occurred while retrieving the orders."
-            });
-          case 27:
-          case "end":
             return _context5.stop();
         }
       }
-    }, _callee5, null, [[1, 23]]);
+    }, _callee5, null, [[0, 19]]);
   }));
-  return function handleGetOrdersByUuids(_x5) {
+  return function handleGetOneOrderByUuid(_x4) {
     return _ref5.apply(this, arguments);
   };
 }();
-var handleGetOrdersByUserPhoneNumber = /*#__PURE__*/function () {
-  var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6(phone_number) {
-    var t, user, orders, _yield$Promise$all9, _yield$Promise$all10, orderDetails, orderStatuses, shippingAddresses, paymentMethods, result;
+var handleGetOrdersByUuids = /*#__PURE__*/function () {
+  var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6(encodedUuids) {
+    var t, decodedUuids, uuids, orders, _yield$Promise$all9, _yield$Promise$all10, orderDetails, orderStatuses, shippingAddresses, paymentMethods, result;
     return _regeneratorRuntime().wrap(function _callee6$(_context6) {
       while (1) {
         switch (_context6.prev = _context6.next) {
           case 0:
             t = _database["default"].transaction();
             _context6.prev = 1;
-            _context6.next = 4;
-            return _models["default"].User.findOne({
-              where: {
-                phone_number: phone_number
-              }
-            });
-          case 4:
-            user = _context6.sent;
-            if (!user) {
-              _context6.next = 20;
+            decodedUuids = decodeURIComponent(encodedUuids);
+            if (!_lodash["default"].isEmpty(decodedUuids)) {
+              _context6.next = 5;
               break;
             }
+            return _context6.abrupt("return", {
+              code: _constant.ResponseCode.FILE_NOT_FOUND,
+              message: "Orders not found."
+            });
+          case 5:
+            uuids = decodedUuids.split(",");
             _context6.next = 8;
             return _models["default"].Order.findAll({
               where: {
-                customer_phone_number: user.phone_number
+                order_uuid: uuids
               }
             });
           case 8:
@@ -528,9 +463,7 @@ var handleGetOrdersByUserPhoneNumber = /*#__PURE__*/function () {
             _context6.next = 12;
             return Promise.all([_models["default"].OrderDetail.findAll({
               where: {
-                order_uuid: orders.map(function (order) {
-                  return order.order_uuid;
-                })
+                order_uuid: uuids
               }
             }), _models["default"].Status.findAll({
               where: {
@@ -563,12 +496,12 @@ var handleGetOrdersByUserPhoneNumber = /*#__PURE__*/function () {
                 shipping_address_id = order.shipping_address_id,
                 payment_method_id = order.payment_method_id,
                 status_id = order.status_id,
-                rest = _objectWithoutProperties(order, _excluded4);
-              var orderDetail = orderDetails.filter(function (detail) {
-                return detail.order_uuid === order.order_uuid;
-              });
+                rest = _objectWithoutProperties(order, _excluded3);
               var orderStatus = orderStatuses.find(function (status) {
                 return status.id === status_id;
+              });
+              var orderDetail = orderDetails.filter(function (detail) {
+                return detail.order_uuid === order.order_uuid;
               });
               var shippingAddress = shippingAddresses.find(function (address) {
                 return address.id === shipping_address_id;
@@ -608,33 +541,153 @@ var handleGetOrdersByUserPhoneNumber = /*#__PURE__*/function () {
       }
     }, _callee6, null, [[1, 23]]);
   }));
-  return function handleGetOrdersByUserPhoneNumber(_x6) {
+  return function handleGetOrdersByUuids(_x5) {
     return _ref6.apply(this, arguments);
   };
 }();
-var handleCreateOrder = /*#__PURE__*/function () {
-  var _ref7 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee7(order) {
-    var t, thisMoment, datetimeUuid, customerPhoneNumber, items, note, paymentDetails, paymentMethod, shippingAddress, _yield$db$ShippingAdd, _yield$db$ShippingAdd2, shipping_adddress, created, orderDataToInsert, orderItemsToInsert, historyDataToInsert;
+var handleGetOrdersByUserPhoneNumber = /*#__PURE__*/function () {
+  var _ref7 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee7(phone_number) {
+    var t, user, orders, _yield$Promise$all11, _yield$Promise$all12, orderDetails, orderStatuses, shippingAddresses, paymentMethods, result;
     return _regeneratorRuntime().wrap(function _callee7$(_context7) {
       while (1) {
         switch (_context7.prev = _context7.next) {
           case 0:
-            _context7.next = 2;
+            t = _database["default"].transaction();
+            _context7.prev = 1;
+            _context7.next = 4;
+            return _models["default"].User.findOne({
+              where: {
+                phone_number: phone_number
+              }
+            });
+          case 4:
+            user = _context7.sent;
+            if (!user) {
+              _context7.next = 20;
+              break;
+            }
+            _context7.next = 8;
+            return _models["default"].Order.findAll({
+              where: {
+                customer_phone_number: user.phone_number
+              }
+            });
+          case 8:
+            orders = _context7.sent;
+            if (!(orders.length > 0)) {
+              _context7.next = 20;
+              break;
+            }
+            _context7.next = 12;
+            return Promise.all([_models["default"].OrderDetail.findAll({
+              where: {
+                order_uuid: orders.map(function (order) {
+                  return order.order_uuid;
+                })
+              }
+            }), _models["default"].Status.findAll({
+              where: {
+                id: orders.map(function (order) {
+                  return order.status_id;
+                })
+              }
+            }), _models["default"].ShippingAddress.findAll({
+              where: {
+                id: orders.map(function (order) {
+                  return order.shipping_address_id;
+                })
+              }
+            }), _models["default"].PaymentMethod.findAll({
+              where: {
+                id: orders.map(function (order) {
+                  return order.payment_method_id;
+                })
+              }
+            })]);
+          case 12:
+            _yield$Promise$all11 = _context7.sent;
+            _yield$Promise$all12 = _slicedToArray(_yield$Promise$all11, 4);
+            orderDetails = _yield$Promise$all12[0];
+            orderStatuses = _yield$Promise$all12[1];
+            shippingAddresses = _yield$Promise$all12[2];
+            paymentMethods = _yield$Promise$all12[3];
+            result = orders.map(function (order) {
+              var id = order.id,
+                shipping_address_id = order.shipping_address_id,
+                payment_method_id = order.payment_method_id,
+                status_id = order.status_id,
+                rest = _objectWithoutProperties(order, _excluded4);
+              var orderDetail = orderDetails.filter(function (detail) {
+                return detail.order_uuid === order.order_uuid;
+              });
+              var orderStatus = orderStatuses.find(function (status) {
+                return status.id === status_id;
+              });
+              var shippingAddress = shippingAddresses.find(function (address) {
+                return address.id === shipping_address_id;
+              });
+              var paymentMethod = paymentMethods.find(function (method) {
+                return method.id === payment_method_id;
+              });
+              return _objectSpread(_objectSpread({}, rest), {}, {
+                status: orderStatus,
+                items: orderDetail,
+                shipping_address: shippingAddress,
+                payment_method: paymentMethod
+              });
+            });
+            return _context7.abrupt("return", {
+              code: _constant.ResponseCode.SUCCESS,
+              message: "Retrieved orders successfully",
+              result: result
+            });
+          case 20:
+            return _context7.abrupt("return", {
+              code: _constant.ResponseCode.FILE_NOT_FOUND,
+              message: "Orders not found."
+            });
+          case 23:
+            _context7.prev = 23;
+            _context7.t0 = _context7["catch"](1);
+            console.log(_context7.t0);
+            return _context7.abrupt("return", {
+              code: _constant.ResponseCode.DATABASE_ERROR,
+              message: "An error occurred while retrieving the orders."
+            });
+          case 27:
+          case "end":
+            return _context7.stop();
+        }
+      }
+    }, _callee7, null, [[1, 23]]);
+  }));
+  return function handleGetOrdersByUserPhoneNumber(_x6) {
+    return _ref7.apply(this, arguments);
+  };
+}();
+var handleCreateOrder = /*#__PURE__*/function () {
+  var _ref8 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee8(order) {
+    var t, thisMoment, datetimeUuid, customerPhoneNumber, items, note, paymentDetails, paymentMethod, shippingAddress, _yield$db$ShippingAdd, _yield$db$ShippingAdd2, shipping_adddress, created, orderDataToInsert, orderItemsToInsert, historyDataToInsert;
+    return _regeneratorRuntime().wrap(function _callee8$(_context8) {
+      while (1) {
+        switch (_context8.prev = _context8.next) {
+          case 0:
+            _context8.next = 2;
             return _database["default"].transaction();
           case 2:
-            t = _context7.sent;
-            _context7.prev = 3;
+            t = _context8.sent;
+            _context8.prev = 3;
             thisMoment = new Date();
             datetimeUuid = thisMoment.valueOf();
             customerPhoneNumber = order.customerPhoneNumber, items = order.items, note = order.note, paymentDetails = order.paymentDetails, paymentMethod = order.paymentMethod, shippingAddress = order.shippingAddress;
-            _context7.next = 9;
+            _context8.next = 9;
             return _models["default"].ShippingAddress.findOrCreate({
               where: _objectSpread({}, shippingAddress),
               defaults: shippingAddress,
               transaction: t
             });
           case 9:
-            _yield$db$ShippingAdd = _context7.sent;
+            _yield$db$ShippingAdd = _context8.sent;
             _yield$db$ShippingAdd2 = _slicedToArray(_yield$db$ShippingAdd, 2);
             shipping_adddress = _yield$db$ShippingAdd2[0];
             created = _yield$db$ShippingAdd2[1];
@@ -647,13 +700,13 @@ var handleCreateOrder = /*#__PURE__*/function () {
               status_id: 1,
               note: note
             });
-            orderItemsToInsert = items.map(function (_ref8) {
-              var id = _ref8.id,
-                name = _ref8.name,
-                slug = _ref8.slug,
-                price = _ref8.price,
-                quantity = _ref8.quantity,
-                feature_image_url = _ref8.feature_image_url;
+            orderItemsToInsert = items.map(function (_ref9) {
+              var id = _ref9.id,
+                name = _ref9.name,
+                slug = _ref9.slug,
+                price = _ref9.price,
+                quantity = _ref9.quantity,
+                feature_image_url = _ref9.feature_image_url;
               return {
                 order_uuid: datetimeUuid,
                 product_id: id,
@@ -670,7 +723,7 @@ var handleCreateOrder = /*#__PURE__*/function () {
               status_id: 1,
               description: "Kh\xE1ch ".concat(customerPhoneNumber, " \u0111\u1EB7t h\xE0ng")
             };
-            _context7.next = 18;
+            _context8.next = 18;
             return Promise.all([_models["default"].Order.create(orderDataToInsert, {
               transaction: t
             }), _models["default"].OrderDetail.bulkCreate(orderItemsToInsert, {
@@ -679,107 +732,37 @@ var handleCreateOrder = /*#__PURE__*/function () {
               transaction: t
             })]);
           case 18:
-            _context7.next = 20;
+            _context8.next = 20;
             return t.commit();
           case 20:
-            return _context7.abrupt("return", {
+            return _context8.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Create order successfully",
               result: datetimeUuid
             });
           case 23:
-            _context7.prev = 23;
-            _context7.t0 = _context7["catch"](3);
-            _context7.next = 27;
+            _context8.prev = 23;
+            _context8.t0 = _context8["catch"](3);
+            _context8.next = 27;
             return t.rollback();
           case 27:
-            console.log(_context7.t0);
-            return _context7.abrupt("return", {
+            console.log(_context8.t0);
+            return _context8.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "An error occurred during the transaction."
             });
           case 29:
           case "end":
-            return _context7.stop();
+            return _context8.stop();
         }
       }
-    }, _callee7, null, [[3, 23]]);
+    }, _callee8, null, [[3, 23]]);
   }));
   return function handleCreateOrder(_x7) {
-    return _ref7.apply(this, arguments);
+    return _ref8.apply(this, arguments);
   };
 }();
 var handleConfirmOrder = function handleConfirmOrder(uuid) {
-  return new Promise( /*#__PURE__*/function () {
-    var _ref9 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee8(resolve, reject) {
-      var data, targetOrder, thisMoment, stateArray, newStateArray;
-      return _regeneratorRuntime().wrap(function _callee8$(_context8) {
-        while (1) {
-          switch (_context8.prev = _context8.next) {
-            case 0:
-              data = {};
-              _context8.prev = 1;
-              _context8.next = 4;
-              return _models["default"].Order.findOne({
-                where: {
-                  orderUuid: uuid
-                }
-              });
-            case 4:
-              targetOrder = _context8.sent;
-              if (!targetOrder) {
-                _context8.next = 16;
-                break;
-              }
-              thisMoment = new Date();
-              stateArray = JSON.parse(targetOrder.state);
-              if (!(stateArray[stateArray.length - 1].code < 1)) {
-                _context8.next = 14;
-                break;
-              }
-              newStateArray = [].concat(_toConsumableArray(stateArray), [{
-                code: 1,
-                description: "Đã xác nhận",
-                time: thisMoment.toISOString()
-              }]);
-              _context8.next = 12;
-              return _models["default"].Order.update({
-                state: JSON.stringify(newStateArray)
-              }, {
-                where: {
-                  orderUuid: uuid
-                }
-              });
-            case 12:
-              data.code = 0;
-              data.message = "this order has been confirmed";
-            case 14:
-              _context8.next = 18;
-              break;
-            case 16:
-              data.code = 2;
-              data.message = "invalid order";
-            case 18:
-              resolve(data);
-              _context8.next = 24;
-              break;
-            case 21:
-              _context8.prev = 21;
-              _context8.t0 = _context8["catch"](1);
-              reject(_context8.t0);
-            case 24:
-            case "end":
-              return _context8.stop();
-          }
-        }
-      }, _callee8, null, [[1, 21]]);
-    }));
-    return function (_x8, _x9) {
-      return _ref9.apply(this, arguments);
-    };
-  }());
-};
-var handleDeliveryOrder = function handleDeliveryOrder(uuid) {
   return new Promise( /*#__PURE__*/function () {
     var _ref10 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee9(resolve, reject) {
       var data, targetOrder, thisMoment, stateArray, newStateArray;
@@ -803,13 +786,13 @@ var handleDeliveryOrder = function handleDeliveryOrder(uuid) {
               }
               thisMoment = new Date();
               stateArray = JSON.parse(targetOrder.state);
-              if (!(stateArray[stateArray.length - 1].code < 2)) {
+              if (!(stateArray[stateArray.length - 1].code < 1)) {
                 _context9.next = 14;
                 break;
               }
               newStateArray = [].concat(_toConsumableArray(stateArray), [{
-                code: 2,
-                description: "Đang giao hàng",
+                code: 1,
+                description: "Đã xác nhận",
                 time: thisMoment.toISOString()
               }]);
               _context9.next = 12;
@@ -822,7 +805,7 @@ var handleDeliveryOrder = function handleDeliveryOrder(uuid) {
               });
             case 12:
               data.code = 0;
-              data.message = "this order being delivery";
+              data.message = "this order has been confirmed";
             case 14:
               _context9.next = 18;
               break;
@@ -844,12 +827,12 @@ var handleDeliveryOrder = function handleDeliveryOrder(uuid) {
         }
       }, _callee9, null, [[1, 21]]);
     }));
-    return function (_x10, _x11) {
+    return function (_x8, _x9) {
       return _ref10.apply(this, arguments);
     };
   }());
 };
-var handleFinishedOrder = function handleFinishedOrder(uuid) {
+var handleDeliveryOrder = function handleDeliveryOrder(uuid) {
   return new Promise( /*#__PURE__*/function () {
     var _ref11 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee10(resolve, reject) {
       var data, targetOrder, thisMoment, stateArray, newStateArray;
@@ -873,13 +856,13 @@ var handleFinishedOrder = function handleFinishedOrder(uuid) {
               }
               thisMoment = new Date();
               stateArray = JSON.parse(targetOrder.state);
-              if (!(stateArray[stateArray.length - 1].code === 2)) {
+              if (!(stateArray[stateArray.length - 1].code < 2)) {
                 _context10.next = 14;
                 break;
               }
               newStateArray = [].concat(_toConsumableArray(stateArray), [{
-                code: 3,
-                description: "Giao hàng thành công",
+                code: 2,
+                description: "Đang giao hàng",
                 time: thisMoment.toISOString()
               }]);
               _context10.next = 12;
@@ -892,7 +875,7 @@ var handleFinishedOrder = function handleFinishedOrder(uuid) {
               });
             case 12:
               data.code = 0;
-              data.message = "delivery success";
+              data.message = "this order being delivery";
             case 14:
               _context10.next = 18;
               break;
@@ -914,12 +897,12 @@ var handleFinishedOrder = function handleFinishedOrder(uuid) {
         }
       }, _callee10, null, [[1, 21]]);
     }));
-    return function (_x12, _x13) {
+    return function (_x10, _x11) {
       return _ref11.apply(this, arguments);
     };
   }());
 };
-var handleCancelOrder = function handleCancelOrder(uuid) {
+var handleFinishedOrder = function handleFinishedOrder(uuid) {
   return new Promise( /*#__PURE__*/function () {
     var _ref12 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee11(resolve, reject) {
       var data, targetOrder, thisMoment, stateArray, newStateArray;
@@ -943,13 +926,13 @@ var handleCancelOrder = function handleCancelOrder(uuid) {
               }
               thisMoment = new Date();
               stateArray = JSON.parse(targetOrder.state);
-              if (!(stateArray[stateArray.length - 1].code !== 4)) {
+              if (!(stateArray[stateArray.length - 1].code === 2)) {
                 _context11.next = 14;
                 break;
               }
               newStateArray = [].concat(_toConsumableArray(stateArray), [{
-                code: 4,
-                description: "Đã hủy",
+                code: 3,
+                description: "Giao hàng thành công",
                 time: thisMoment.toISOString()
               }]);
               _context11.next = 12;
@@ -962,7 +945,7 @@ var handleCancelOrder = function handleCancelOrder(uuid) {
               });
             case 12:
               data.code = 0;
-              data.message = "this order has been cancelled";
+              data.message = "delivery success";
             case 14:
               _context11.next = 18;
               break;
@@ -984,15 +967,15 @@ var handleCancelOrder = function handleCancelOrder(uuid) {
         }
       }, _callee11, null, [[1, 21]]);
     }));
-    return function (_x14, _x15) {
+    return function (_x12, _x13) {
       return _ref12.apply(this, arguments);
     };
   }());
 };
-var handleDeleteOrder = function handleDeleteOrder(orderId) {
+var handleCancelOrder = function handleCancelOrder(uuid) {
   return new Promise( /*#__PURE__*/function () {
     var _ref13 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee12(resolve, reject) {
-      var data, targetOrder;
+      var data, targetOrder, thisMoment, stateArray, newStateArray;
       return _regeneratorRuntime().wrap(function _callee12$(_context12) {
         while (1) {
           switch (_context12.prev = _context12.next) {
@@ -1002,63 +985,173 @@ var handleDeleteOrder = function handleDeleteOrder(orderId) {
               _context12.next = 4;
               return _models["default"].Order.findOne({
                 where: {
-                  id: orderId
+                  orderUuid: uuid
                 }
               });
             case 4:
               targetOrder = _context12.sent;
               if (!targetOrder) {
-                _context12.next = 12;
+                _context12.next = 16;
                 break;
               }
-              _context12.next = 8;
-              return _models["default"].Order.destroy({
+              thisMoment = new Date();
+              stateArray = JSON.parse(targetOrder.state);
+              if (!(stateArray[stateArray.length - 1].code !== 4)) {
+                _context12.next = 14;
+                break;
+              }
+              newStateArray = [].concat(_toConsumableArray(stateArray), [{
+                code: 4,
+                description: "Đã hủy",
+                time: thisMoment.toISOString()
+              }]);
+              _context12.next = 12;
+              return _models["default"].Order.update({
+                state: JSON.stringify(newStateArray)
+              }, {
                 where: {
-                  id: orderId
+                  orderUuid: uuid
                 }
               });
-            case 8:
-              data.code = 0;
-              data.message = "delete order success";
-              _context12.next = 14;
-              break;
             case 12:
-              data.code = 1;
-              data.message = "invalid order";
+              data.code = 0;
+              data.message = "this order has been cancelled";
             case 14:
-              resolve(data);
-              _context12.next = 20;
+              _context12.next = 18;
               break;
-            case 17:
-              _context12.prev = 17;
+            case 16:
+              data.code = 2;
+              data.message = "invalid order";
+            case 18:
+              resolve(data);
+              _context12.next = 24;
+              break;
+            case 21:
+              _context12.prev = 21;
               _context12.t0 = _context12["catch"](1);
               reject(_context12.t0);
-            case 20:
+            case 24:
             case "end":
               return _context12.stop();
           }
         }
-      }, _callee12, null, [[1, 17]]);
+      }, _callee12, null, [[1, 21]]);
     }));
-    return function (_x16, _x17) {
+    return function (_x14, _x15) {
       return _ref13.apply(this, arguments);
     };
   }());
 };
-var getEmployeeIdByPhone = /*#__PURE__*/function () {
-  var _ref14 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13(phoneNumber) {
-    var employee;
+var handleDeleteOrder = /*#__PURE__*/function () {
+  var _ref14 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13(orderRef) {
+    var orderId, orderUuid, where, t, targetOrder;
     return _regeneratorRuntime().wrap(function _callee13$(_context13) {
       while (1) {
         switch (_context13.prev = _context13.next) {
           case 0:
-            if (phoneNumber) {
-              _context13.next = 2;
+            orderId = _typeof(orderRef) === "object" ? orderRef.id : orderRef;
+            orderUuid = _typeof(orderRef) === "object" ? orderRef.order_uuid || orderRef.uuid : null;
+            where = orderId ? {
+              id: orderId
+            } : {
+              order_uuid: orderUuid
+            };
+            if (!(!where.id && !where.order_uuid)) {
+              _context13.next = 5;
               break;
             }
-            return _context13.abrupt("return", null);
+            return _context13.abrupt("return", {
+              code: _constant.ResponseCode.MISSING_PARAMETER,
+              message: "Missing order identifier."
+            });
+          case 5:
+            _context13.next = 7;
+            return _database["default"].transaction();
+          case 7:
+            t = _context13.sent;
+            _context13.prev = 8;
+            _context13.next = 11;
+            return _models["default"].Order.findOne({
+              where: where,
+              transaction: t
+            });
+          case 11:
+            targetOrder = _context13.sent;
+            if (targetOrder) {
+              _context13.next = 16;
+              break;
+            }
+            _context13.next = 15;
+            return t.rollback();
+          case 15:
+            return _context13.abrupt("return", {
+              code: _constant.ResponseCode.FILE_NOT_FOUND,
+              message: "Order not found."
+            });
+          case 16:
+            _context13.next = 18;
+            return _models["default"].OrderDetail.destroy({
+              where: {
+                order_uuid: targetOrder.order_uuid
+              },
+              transaction: t
+            });
+          case 18:
+            _context13.next = 20;
+            return _models["default"].HistoryOrderUpdate.destroy({
+              where: {
+                order_uuid: targetOrder.order_uuid
+              },
+              transaction: t
+            });
+          case 20:
+            _context13.next = 22;
+            return _models["default"].Order.destroy({
+              where: {
+                id: targetOrder.id
+              },
+              transaction: t
+            });
+          case 22:
+            _context13.next = 24;
+            return t.commit();
+          case 24:
+            return _context13.abrupt("return", {
+              code: _constant.ResponseCode.SUCCESS,
+              message: "Delete order successfully."
+            });
+          case 27:
+            _context13.prev = 27;
+            _context13.t0 = _context13["catch"](8);
+            _context13.next = 31;
+            return t.rollback();
+          case 31:
+            throw _context13.t0;
+          case 32:
+          case "end":
+            return _context13.stop();
+        }
+      }
+    }, _callee13, null, [[8, 27]]);
+  }));
+  return function handleDeleteOrder(_x16) {
+    return _ref14.apply(this, arguments);
+  };
+}();
+var getEmployeeIdByPhone = /*#__PURE__*/function () {
+  var _ref15 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14(phoneNumber) {
+    var employee;
+    return _regeneratorRuntime().wrap(function _callee14$(_context14) {
+      while (1) {
+        switch (_context14.prev = _context14.next) {
+          case 0:
+            if (phoneNumber) {
+              _context14.next = 2;
+              break;
+            }
+            return _context14.abrupt("return", null);
           case 2:
-            _context13.next = 4;
+            _context14.next = 4;
             return _models["default"].User.findOne({
               attributes: ["id"],
               where: {
@@ -1066,33 +1159,33 @@ var getEmployeeIdByPhone = /*#__PURE__*/function () {
               }
             });
           case 4:
-            employee = _context13.sent;
-            return _context13.abrupt("return", (employee === null || employee === void 0 ? void 0 : employee.id) || null);
+            employee = _context14.sent;
+            return _context14.abrupt("return", (employee === null || employee === void 0 ? void 0 : employee.id) || null);
           case 6:
           case "end":
-            return _context13.stop();
+            return _context14.stop();
         }
       }
-    }, _callee13);
+    }, _callee14);
   }));
-  return function getEmployeeIdByPhone(_x18) {
-    return _ref14.apply(this, arguments);
+  return function getEmployeeIdByPhone(_x17) {
+    return _ref15.apply(this, arguments);
   };
 }();
 var handleUpdateOrder = /*#__PURE__*/function () {
-  var _ref15 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14(data, employeePhoneNumber) {
+  var _ref16 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15(data, employeePhoneNumber) {
     var t, order_uuid, status_id, note, payment_method_id, shipping_address, order, orderUpdates, nextStatusId, status;
-    return _regeneratorRuntime().wrap(function _callee14$(_context14) {
+    return _regeneratorRuntime().wrap(function _callee15$(_context15) {
       while (1) {
-        switch (_context14.prev = _context14.next) {
+        switch (_context15.prev = _context15.next) {
           case 0:
-            _context14.next = 2;
+            _context15.next = 2;
             return _database["default"].transaction();
           case 2:
-            t = _context14.sent;
-            _context14.prev = 3;
+            t = _context15.sent;
+            _context15.prev = 3;
             order_uuid = data.order_uuid, status_id = data.status_id, note = data.note, payment_method_id = data.payment_method_id, shipping_address = data.shipping_address;
-            _context14.next = 7;
+            _context15.next = 7;
             return _models["default"].Order.findOne({
               where: {
                 order_uuid: order_uuid
@@ -1100,15 +1193,15 @@ var handleUpdateOrder = /*#__PURE__*/function () {
               transaction: t
             });
           case 7:
-            order = _context14.sent;
+            order = _context15.sent;
             if (order) {
-              _context14.next = 12;
+              _context15.next = 12;
               break;
             }
-            _context14.next = 11;
+            _context15.next = 11;
             return t.rollback();
           case 11:
-            return _context14.abrupt("return", {
+            return _context15.abrupt("return", {
               code: _constant.ResponseCode.FILE_NOT_FOUND,
               message: "Order not found."
             });
@@ -1116,10 +1209,10 @@ var handleUpdateOrder = /*#__PURE__*/function () {
             orderUpdates = {};
             nextStatusId = status_id ? Number(status_id) : null;
             if (!(nextStatusId && nextStatusId !== Number(order.status_id))) {
-              _context14.next = 34;
+              _context15.next = 34;
               break;
             }
-            _context14.next = 17;
+            _context15.next = 17;
             return _models["default"].Status.findOne({
               where: {
                 id: nextStatusId
@@ -1127,39 +1220,39 @@ var handleUpdateOrder = /*#__PURE__*/function () {
               transaction: t
             });
           case 17:
-            status = _context14.sent;
+            status = _context15.sent;
             if (status) {
-              _context14.next = 22;
+              _context15.next = 22;
               break;
             }
-            _context14.next = 21;
+            _context15.next = 21;
             return t.rollback();
           case 21:
-            return _context14.abrupt("return", {
+            return _context15.abrupt("return", {
               code: _constant.ResponseCode.FILE_NOT_FOUND,
               message: "Order status not found."
             });
           case 22:
             orderUpdates.status_id = nextStatusId;
-            _context14.t0 = _models["default"].HistoryOrderUpdate;
-            _context14.t1 = order_uuid;
-            _context14.next = 27;
+            _context15.t0 = _models["default"].HistoryOrderUpdate;
+            _context15.t1 = order_uuid;
+            _context15.next = 27;
             return getEmployeeIdByPhone(employeePhoneNumber);
           case 27:
-            _context14.t2 = _context14.sent;
-            _context14.t3 = nextStatusId;
-            _context14.t4 = "Update order status to ".concat(status.code);
-            _context14.t5 = {
-              order_uuid: _context14.t1,
-              employee_id: _context14.t2,
-              status_id: _context14.t3,
-              description: _context14.t4
+            _context15.t2 = _context15.sent;
+            _context15.t3 = nextStatusId;
+            _context15.t4 = "Update order status to ".concat(status.code);
+            _context15.t5 = {
+              order_uuid: _context15.t1,
+              employee_id: _context15.t2,
+              status_id: _context15.t3,
+              description: _context15.t4
             };
-            _context14.t6 = {
+            _context15.t6 = {
               transaction: t
             };
-            _context14.next = 34;
-            return _context14.t0.create.call(_context14.t0, _context14.t5, _context14.t6);
+            _context15.next = 34;
+            return _context15.t0.create.call(_context15.t0, _context15.t5, _context15.t6);
           case 34:
             if (note !== undefined) {
               orderUpdates.note = note;
@@ -1168,10 +1261,10 @@ var handleUpdateOrder = /*#__PURE__*/function () {
               orderUpdates.payment_method_id = Number(payment_method_id);
             }
             if (!shipping_address) {
-              _context14.next = 39;
+              _context15.next = 39;
               break;
             }
-            _context14.next = 39;
+            _context15.next = 39;
             return _models["default"].ShippingAddress.update({
               receiver_name: shipping_address.receiver_name,
               receiver_phone: shipping_address.receiver_phone,
@@ -1184,10 +1277,10 @@ var handleUpdateOrder = /*#__PURE__*/function () {
             });
           case 39:
             if (!(Object.keys(orderUpdates).length > 0)) {
-              _context14.next = 42;
+              _context15.next = 42;
               break;
             }
-            _context14.next = 42;
+            _context15.next = 42;
             return _models["default"].Order.update(orderUpdates, {
               where: {
                 order_uuid: order_uuid
@@ -1195,62 +1288,62 @@ var handleUpdateOrder = /*#__PURE__*/function () {
               transaction: t
             });
           case 42:
-            _context14.next = 44;
+            _context15.next = 44;
             return t.commit();
           case 44:
-            return _context14.abrupt("return", {
+            return _context15.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Update order successfully"
             });
           case 47:
-            _context14.prev = 47;
-            _context14.t7 = _context14["catch"](3);
-            _context14.next = 51;
+            _context15.prev = 47;
+            _context15.t7 = _context15["catch"](3);
+            _context15.next = 51;
             return t.rollback();
           case 51:
-            console.log(_context14.t7);
-            return _context14.abrupt("return", {
+            console.log(_context15.t7);
+            return _context15.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "An error occurred while updating the order."
             });
           case 53:
           case "end":
-            return _context14.stop();
+            return _context15.stop();
         }
       }
-    }, _callee14, null, [[3, 47]]);
+    }, _callee15, null, [[3, 47]]);
   }));
-  return function handleUpdateOrder(_x19, _x20) {
-    return _ref15.apply(this, arguments);
+  return function handleUpdateOrder(_x18, _x19) {
+    return _ref16.apply(this, arguments);
   };
 }();
 var handleChangeOrderStatus = /*#__PURE__*/function () {
-  var _ref16 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15(uuid, statusId, employeePhoneNumber, description) {
+  var _ref17 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16(uuid, statusId, employeePhoneNumber, description) {
     var data;
-    return _regeneratorRuntime().wrap(function _callee15$(_context15) {
+    return _regeneratorRuntime().wrap(function _callee16$(_context16) {
       while (1) {
-        switch (_context15.prev = _context15.next) {
+        switch (_context16.prev = _context16.next) {
           case 0:
-            _context15.next = 2;
+            _context16.next = 2;
             return handleUpdateOrder({
               order_uuid: uuid,
               status_id: statusId
             }, employeePhoneNumber);
           case 2:
-            data = _context15.sent;
-            return _context15.abrupt("return", {
+            data = _context16.sent;
+            return _context16.abrupt("return", {
               code: data.code,
               message: data.code === _constant.ResponseCode.SUCCESS ? description : data.message
             });
           case 4:
           case "end":
-            return _context15.stop();
+            return _context16.stop();
         }
       }
-    }, _callee15);
+    }, _callee16);
   }));
-  return function handleChangeOrderStatus(_x21, _x22, _x23, _x24) {
-    return _ref16.apply(this, arguments);
+  return function handleChangeOrderStatus(_x20, _x21, _x22, _x23) {
+    return _ref17.apply(this, arguments);
   };
 }();
 handleConfirmOrder = function handleConfirmOrder(uuid, employeePhoneNumber) {
@@ -1266,43 +1359,55 @@ handleCancelOrder = function handleCancelOrder(uuid, employeePhoneNumber) {
   return handleChangeOrderStatus(uuid, 5, employeePhoneNumber, "this order has been cancelled");
 };
 handleDeleteOrder = /*#__PURE__*/function () {
-  var _ref18 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16(_ref17) {
+  var _ref19 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17(_ref18) {
     var id, uuid, order_uuid, t, where, targetOrder;
-    return _regeneratorRuntime().wrap(function _callee16$(_context16) {
+    return _regeneratorRuntime().wrap(function _callee17$(_context17) {
       while (1) {
-        switch (_context16.prev = _context16.next) {
+        switch (_context17.prev = _context17.next) {
           case 0:
-            id = _ref17.id, uuid = _ref17.uuid, order_uuid = _ref17.order_uuid;
-            _context16.next = 3;
+            id = _ref18.id, uuid = _ref18.uuid, order_uuid = _ref18.order_uuid;
+            _context17.next = 3;
             return _database["default"].transaction();
           case 3:
-            t = _context16.sent;
+            t = _context17.sent;
             where = order_uuid || uuid ? {
               order_uuid: order_uuid || uuid
             } : {
               id: id
             };
-            _context16.prev = 5;
-            _context16.next = 8;
+            if (!(!where.id && !where.order_uuid)) {
+              _context17.next = 9;
+              break;
+            }
+            _context17.next = 8;
+            return t.rollback();
+          case 8:
+            return _context17.abrupt("return", {
+              code: _constant.ResponseCode.MISSING_PARAMETER,
+              message: "Missing order identifier."
+            });
+          case 9:
+            _context17.prev = 9;
+            _context17.next = 12;
             return _models["default"].Order.findOne({
               where: where,
               transaction: t
             });
-          case 8:
-            targetOrder = _context16.sent;
+          case 12:
+            targetOrder = _context17.sent;
             if (targetOrder) {
-              _context16.next = 13;
+              _context17.next = 17;
               break;
             }
-            _context16.next = 12;
+            _context17.next = 16;
             return t.rollback();
-          case 12:
-            return _context16.abrupt("return", {
+          case 16:
+            return _context17.abrupt("return", {
               code: _constant.ResponseCode.FILE_NOT_FOUND,
               message: "invalid order"
             });
-          case 13:
-            _context16.next = 15;
+          case 17:
+            _context17.next = 19;
             return Promise.all([_models["default"].HistoryOrderUpdate.destroy({
               where: {
                 order_uuid: targetOrder.order_uuid
@@ -1314,47 +1419,48 @@ handleDeleteOrder = /*#__PURE__*/function () {
               },
               transaction: t
             })]);
-          case 15:
-            _context16.next = 17;
+          case 19:
+            _context17.next = 21;
             return _models["default"].Order.destroy({
               where: {
                 id: targetOrder.id
               },
               transaction: t
             });
-          case 17:
-            _context16.next = 19;
+          case 21:
+            _context17.next = 23;
             return t.commit();
-          case 19:
-            return _context16.abrupt("return", {
+          case 23:
+            return _context17.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
-              message: "delete order success"
+              message: "Delete order successfully."
             });
-          case 22:
-            _context16.prev = 22;
-            _context16.t0 = _context16["catch"](5);
-            _context16.next = 26;
-            return t.rollback();
           case 26:
-            console.log(_context16.t0);
-            return _context16.abrupt("return", {
+            _context17.prev = 26;
+            _context17.t0 = _context17["catch"](9);
+            _context17.next = 30;
+            return t.rollback();
+          case 30:
+            console.log(_context17.t0);
+            return _context17.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "An error occurred while deleting the order."
             });
-          case 28:
+          case 32:
           case "end":
-            return _context16.stop();
+            return _context17.stop();
         }
       }
-    }, _callee16, null, [[5, 22]]);
+    }, _callee17, null, [[9, 26]]);
   }));
-  return function handleDeleteOrder(_x25) {
-    return _ref18.apply(this, arguments);
+  return function handleDeleteOrder(_x24) {
+    return _ref19.apply(this, arguments);
   };
 }();
 module.exports = {
   handleGetPaymentMethods: handleGetPaymentMethods,
   handleGetOrderStatuses: handleGetOrderStatuses,
+  handleCountOrders: handleCountOrders,
   handleGetAllOrders: handleGetAllOrders,
   handleGetOneOrderByUuid: handleGetOneOrderByUuid,
   handleGetOrdersByUuids: handleGetOrdersByUuids,

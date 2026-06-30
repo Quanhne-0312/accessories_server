@@ -7,121 +7,34 @@ function _asyncToGenerator(fn) { return function () { var self = this, args = ar
 module.exports = {
   up: function () {
     var _up = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee(queryInterface, Sequelize) {
-      var now, defaultPasswordHash;
       return _regeneratorRuntime().wrap(function _callee$(_context) {
         while (1) {
           switch (_context.prev = _context.next) {
             case 0:
-              now = new Date();
-              defaultPasswordHash = "$2a$10$XT.VGE7USxy3uu/dI9SDsu7RMqf2rjzCPOcedYlz9EsIKHdmbrkKa";
+              _context.next = 2;
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW view_users AS\n            SELECT\n                users.id,\n                users.phone_number,\n                users.email,\n                users.name,\n                images.secure_url AS avatar_url,\n                users.address,\n                users.birth,\n                users.bio,\n                roles.name AS role,\n                users.role_id,\n                roles.slug AS role_slug\n            FROM users\n            LEFT JOIN roles ON roles.id = users.role_id\n            LEFT JOIN images ON images.target_id = users.id AND images.target_type = 'avatar';\n        ");
+            case 2:
               _context.next = 4;
-              return queryInterface.bulkInsert("roles", [{
-                id: 1,
-                slug: "administrator",
-                name: "Administrator"
-              }, {
-                id: 2,
-                slug: "employee",
-                name: "Employee"
-              }, {
-                id: 3,
-                slug: "customer",
-                name: "Customer"
-              }, {
-                id: 4,
-                slug: "manager",
-                name: "Manager"
-              }]);
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW view_products AS\n            SELECT\n                products.id,\n                products.name,\n                products.slug,\n                products.brand,\n                materials.id AS material_id,\n                products.material,\n                categories.id AS category_id,\n                products.category,\n                products.color,\n                products.price,\n                products.feature_image_url AS image_url,\n                products.description,\n                products.quantity,\n                products.sold\n            FROM products\n            LEFT JOIN materials ON materials.name = products.material\n            LEFT JOIN categories ON categories.name = products.category;\n        ");
             case 4:
               _context.next = 6;
-              return queryInterface.bulkInsert("status", [{
-                id: 1,
-                code: "PROCESSED",
-                description: "Da tiep nhan"
-              }, {
-                id: 2,
-                code: "CONFIRMED",
-                description: "Da xac nhan"
-              }, {
-                id: 3,
-                code: "ON_SHIPPED",
-                description: "Dang giao hang"
-              }, {
-                id: 4,
-                code: "FINISHED",
-                description: "Hoan thanh"
-              }, {
-                id: 5,
-                code: "CANCELED",
-                description: "Da huy"
-              }]);
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW count_role_user_view AS\n            SELECT\n                roles.id,\n                roles.name,\n                roles.slug,\n                COUNT(users.id)::integer AS user_count\n            FROM roles\n            LEFT JOIN users ON users.role_id = roles.id\n            GROUP BY roles.id, roles.name, roles.slug;\n        ");
             case 6:
               _context.next = 8;
-              return queryInterface.bulkInsert("payment_methods", [{
-                id: 1,
-                slug: "cod",
-                name: "Thanh toan khi nhan hang",
-                description: "Cash on delivery"
-              }, {
-                id: 2,
-                slug: "bank-transfer",
-                name: "Chuyen khoan ngan hang",
-                description: "Bank transfer"
-              }]);
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW count_product_by_category_view AS\n            SELECT\n                categories.id,\n                categories.name,\n                categories.slug,\n                COUNT(products.id)::integer AS product_count\n            FROM categories\n            LEFT JOIN products ON products.category = categories.name\n            GROUP BY categories.id, categories.name, categories.slug;\n        ");
             case 8:
               _context.next = 10;
-              return queryInterface.bulkInsert("categories", [{
-                id: 1,
-                slug: "bags",
-                name: "Bags"
-              }, {
-                id: 2,
-                slug: "wallets",
-                name: "Wallets"
-              }, {
-                id: 3,
-                slug: "jewelry",
-                name: "Jewelry"
-              }, {
-                id: 4,
-                slug: "glasses",
-                name: "Glasses"
-              }]);
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW count_product_by_material_view AS\n            SELECT\n                materials.id,\n                materials.name,\n                materials.slug,\n                COUNT(products.id)::integer AS product_count\n            FROM materials\n            LEFT JOIN products ON products.material = materials.name\n            GROUP BY materials.id, materials.name, materials.slug;\n        ");
             case 10:
               _context.next = 12;
-              return queryInterface.bulkInsert("materials", [{
-                id: 1,
-                slug: "leather",
-                name: "Leather"
-              }, {
-                id: 2,
-                slug: "metal",
-                name: "Metal"
-              }, {
-                id: 3,
-                slug: "fabric",
-                name: "Fabric"
-              }, {
-                id: 4,
-                slug: "plastic",
-                name: "Plastic"
-              }]);
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW count_product_by_color_view AS\n            SELECT\n                products.color AS name,\n                COUNT(products.id)::integer AS product_count\n            FROM products\n            WHERE products.color IS NOT NULL AND products.color <> ''\n            GROUP BY products.color;\n        ");
             case 12:
               _context.next = 14;
-              return queryInterface.bulkInsert("users", [{
-                phone_number: "0989999999",
-                email: "admin@accessories.local",
-                password: defaultPasswordHash,
-                name: "Admin",
-                address: "Default address",
-                birth: "1996-07-31",
-                last_login: null,
-                role_id: 1,
-                bio: null,
-                createdAt: now,
-                updatedAt: now
-              }]);
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW view_history_order_update_status AS\n            SELECT\n                history_order_update.id,\n                history_order_update.order_uuid,\n                history_order_update.employee_id,\n                history_order_update.description,\n                history_order_update.status_id,\n                status.code AS status_code,\n                status.description AS status_description,\n                history_order_update.\"createdAt\",\n                history_order_update.\"updatedAt\"\n            FROM history_order_update\n            LEFT JOIN status ON status.id = history_order_update.status_id;\n        ");
             case 14:
+              _context.next = 16;
+              return queryInterface.sequelize.query("\n            CREATE OR REPLACE VIEW view_order_details AS\n            SELECT\n                order_details.id,\n                order_details.name,\n                categories.id AS \"categoryId\",\n                order_details.feature_image_url AS \"imageUrl\",\n                NULL::varchar AS unit,\n                NULL::varchar AS size,\n                order_details.price AS \"oldPrice\",\n                order_details.price AS \"newPrice\",\n                order_details.quantity,\n                order_details.order_uuid AS \"orderUuid\",\n                order_details.price AS \"orderDetailsPrice\"\n            FROM order_details\n            LEFT JOIN products ON products.id = order_details.product_id\n            LEFT JOIN categories ON categories.name = products.category;\n        ");
+            case 16:
             case "end":
               return _context.stop();
           }
@@ -140,25 +53,8 @@ module.exports = {
           switch (_context2.prev = _context2.next) {
             case 0:
               _context2.next = 2;
-              return queryInterface.bulkDelete("users", {
-                email: "admin@accessories.local"
-              }, {});
+              return queryInterface.sequelize.query("\n            DROP VIEW IF EXISTS view_order_details;\n            DROP VIEW IF EXISTS view_history_order_update_status;\n            DROP VIEW IF EXISTS count_product_by_color_view;\n            DROP VIEW IF EXISTS count_product_by_material_view;\n            DROP VIEW IF EXISTS count_product_by_category_view;\n            DROP VIEW IF EXISTS count_role_user_view;\n            DROP VIEW IF EXISTS view_products;\n            DROP VIEW IF EXISTS view_users;\n        ");
             case 2:
-              _context2.next = 4;
-              return queryInterface.bulkDelete("materials", null, {});
-            case 4:
-              _context2.next = 6;
-              return queryInterface.bulkDelete("categories", null, {});
-            case 6:
-              _context2.next = 8;
-              return queryInterface.bulkDelete("payment_methods", null, {});
-            case 8:
-              _context2.next = 10;
-              return queryInterface.bulkDelete("status", null, {});
-            case 10:
-              _context2.next = 12;
-              return queryInterface.bulkDelete("roles", null, {});
-            case 12:
             case "end":
               return _context2.stop();
           }

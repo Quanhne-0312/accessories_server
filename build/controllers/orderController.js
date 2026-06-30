@@ -58,65 +58,88 @@ var getOrderStatuses = /*#__PURE__*/function () {
     return _ref2.apply(this, arguments);
   };
 }();
-var getOrder = /*#__PURE__*/function () {
+var countOrders = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$query, order_uuid, encoded_uuids, phone_number, data, _data, _data2;
+    var data;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) {
         switch (_context3.prev = _context3.next) {
           case 0:
-            _req$query = req.query, order_uuid = _req$query.order_uuid, encoded_uuids = _req$query.encoded_uuids, phone_number = _req$query.phone_number;
-            if (!order_uuid) {
-              _context3.next = 6;
-              break;
-            }
-            _context3.next = 4;
-            return _orderService["default"].handleGetOneOrderByUuid(order_uuid);
-          case 4:
+            _context3.next = 2;
+            return _orderService["default"].handleCountOrders();
+          case 2:
             data = _context3.sent;
             return _context3.abrupt("return", res.status(200).json(data));
-          case 6:
-            if (!encoded_uuids) {
-              _context3.next = 11;
-              break;
-            }
-            _context3.next = 9;
-            return _orderService["default"].handleGetOrdersByUuids(encoded_uuids);
-          case 9:
-            _data = _context3.sent;
-            return _context3.abrupt("return", res.status(200).json(_data));
-          case 11:
-            if (!phone_number) {
-              _context3.next = 16;
-              break;
-            }
-            _context3.next = 14;
-            return _orderService["default"].handleGetOrdersByUserPhoneNumber(phone_number);
-          case 14:
-            _data2 = _context3.sent;
-            return _context3.abrupt("return", res.status(200).json(_data2));
-          case 16:
-            return _context3.abrupt("return", res.status(500).json({
-              code: _index.ResponseCode.MISSING_PARAMETER,
-              message: "Missing parameter(s)."
-            }));
-          case 17:
+          case 4:
           case "end":
             return _context3.stop();
         }
       }
     }, _callee3);
   }));
-  return function getOrder(_x5, _x6) {
+  return function countOrders(_x5, _x6) {
     return _ref3.apply(this, arguments);
   };
 }();
-var getAllOrder = /*#__PURE__*/function () {
+var getOrder = /*#__PURE__*/function () {
   var _ref4 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee4(req, res) {
-    var _req$query2, status_id, status, page, keyword, data;
+    var _req$query, order_uuid, order_id, encoded_uuids, phone_number, data, _data, _data2;
     return _regeneratorRuntime().wrap(function _callee4$(_context4) {
       while (1) {
         switch (_context4.prev = _context4.next) {
+          case 0:
+            _req$query = req.query, order_uuid = _req$query.order_uuid, order_id = _req$query.order_id, encoded_uuids = _req$query.encoded_uuids, phone_number = _req$query.phone_number;
+            if (!(order_uuid || order_id)) {
+              _context4.next = 6;
+              break;
+            }
+            _context4.next = 4;
+            return _orderService["default"].handleGetOneOrderByUuid(order_uuid || order_id);
+          case 4:
+            data = _context4.sent;
+            return _context4.abrupt("return", res.status(200).json(data));
+          case 6:
+            if (!encoded_uuids) {
+              _context4.next = 11;
+              break;
+            }
+            _context4.next = 9;
+            return _orderService["default"].handleGetOrdersByUuids(encoded_uuids);
+          case 9:
+            _data = _context4.sent;
+            return _context4.abrupt("return", res.status(200).json(_data));
+          case 11:
+            if (!phone_number) {
+              _context4.next = 16;
+              break;
+            }
+            _context4.next = 14;
+            return _orderService["default"].handleGetOrdersByUserPhoneNumber(phone_number);
+          case 14:
+            _data2 = _context4.sent;
+            return _context4.abrupt("return", res.status(200).json(_data2));
+          case 16:
+            return _context4.abrupt("return", res.status(500).json({
+              code: _index.ResponseCode.MISSING_PARAMETER,
+              message: "Missing parameter(s)."
+            }));
+          case 17:
+          case "end":
+            return _context4.stop();
+        }
+      }
+    }, _callee4);
+  }));
+  return function getOrder(_x7, _x8) {
+    return _ref4.apply(this, arguments);
+  };
+}();
+var getAllOrder = /*#__PURE__*/function () {
+  var _ref5 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee5(req, res) {
+    var _req$query2, status_id, status, page, keyword, data;
+    return _regeneratorRuntime().wrap(function _callee5$(_context5) {
+      while (1) {
+        switch (_context5.prev = _context5.next) {
           case 0:
             // const authorizationHeader = req.headers["authorization"];
             // const token = authorizationHeader.split(" ")[1]; // 'Beaer <Token>'
@@ -130,35 +153,35 @@ var getAllOrder = /*#__PURE__*/function () {
             // });
             // delete req.headers["authorization"];
             _req$query2 = req.query, status_id = _req$query2.status_id, status = _req$query2.status, page = _req$query2.page, keyword = _req$query2.keyword;
-            _context4.next = 3;
+            _context5.next = 3;
             return _orderService["default"].handleGetAllOrders(status_id || status, page, keyword);
           case 3:
-            data = _context4.sent;
-            return _context4.abrupt("return", res.status(200).json(data));
+            data = _context5.sent;
+            return _context5.abrupt("return", res.status(200).json(data));
           case 5:
           case "end":
-            return _context4.stop();
+            return _context5.stop();
         }
       }
-    }, _callee4);
+    }, _callee5);
   }));
-  return function getAllOrder(_x7, _x8) {
-    return _ref4.apply(this, arguments);
+  return function getAllOrder(_x9, _x10) {
+    return _ref5.apply(this, arguments);
   };
 }();
 var createOrder = /*#__PURE__*/function () {
-  var _ref5 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee5(req, res) {
+  var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6(req, res) {
     var _req$body, customerPhoneNumber, items, note, paymentDetails, paymentMethod, shippingAddress, data;
-    return _regeneratorRuntime().wrap(function _callee5$(_context5) {
+    return _regeneratorRuntime().wrap(function _callee6$(_context6) {
       while (1) {
-        switch (_context5.prev = _context5.next) {
+        switch (_context6.prev = _context6.next) {
           case 0:
             _req$body = req.body, customerPhoneNumber = _req$body.customerPhoneNumber, items = _req$body.items, note = _req$body.note, paymentDetails = _req$body.paymentDetails, paymentMethod = _req$body.paymentMethod, shippingAddress = _req$body.shippingAddress;
             if (!(customerPhoneNumber && items && paymentDetails && paymentMethod && shippingAddress)) {
-              _context5.next = 6;
+              _context6.next = 6;
               break;
             }
-            _context5.next = 4;
+            _context6.next = 4;
             return _orderService["default"].handleCreateOrder({
               customerPhoneNumber: customerPhoneNumber,
               items: items,
@@ -168,43 +191,10 @@ var createOrder = /*#__PURE__*/function () {
               shippingAddress: shippingAddress
             });
           case 4:
-            data = _context5.sent;
-            return _context5.abrupt("return", res.status(200).json(data));
-          case 6:
-            return _context5.abrupt("return", res.status(500).json({
-              code: _index.ResponseCode.MISSING_PARAMETER,
-              message: "Missing parameter(s)."
-            }));
-          case 7:
-          case "end":
-            return _context5.stop();
-        }
-      }
-    }, _callee5);
-  }));
-  return function createOrder(_x9, _x10) {
-    return _ref5.apply(this, arguments);
-  };
-}();
-var updateOrder = /*#__PURE__*/function () {
-  var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6(req, res) {
-    var order_uuid, _req$user, data;
-    return _regeneratorRuntime().wrap(function _callee6$(_context6) {
-      while (1) {
-        switch (_context6.prev = _context6.next) {
-          case 0:
-            order_uuid = req.body.order_uuid;
-            if (!order_uuid) {
-              _context6.next = 6;
-              break;
-            }
-            _context6.next = 4;
-            return _orderService["default"].handleUpdateOrder(req.body, (_req$user = req.user) === null || _req$user === void 0 ? void 0 : _req$user.phone_number);
-          case 4:
             data = _context6.sent;
             return _context6.abrupt("return", res.status(200).json(data));
           case 6:
-            return _context6.abrupt("return", res.status(400).json({
+            return _context6.abrupt("return", res.status(500).json({
               code: _index.ResponseCode.MISSING_PARAMETER,
               message: "Missing parameter(s)."
             }));
@@ -215,48 +205,46 @@ var updateOrder = /*#__PURE__*/function () {
       }
     }, _callee6);
   }));
-  return function updateOrder(_x11, _x12) {
+  return function createOrder(_x11, _x12) {
     return _ref6.apply(this, arguments);
   };
 }();
-var confirmOrder = /*#__PURE__*/function () {
+var updateOrder = /*#__PURE__*/function () {
   var _ref7 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee7(req, res) {
-    var _req$user2, data;
+    var order_uuid, _req$user, data;
     return _regeneratorRuntime().wrap(function _callee7$(_context7) {
       while (1) {
         switch (_context7.prev = _context7.next) {
           case 0:
-            if (!req.body.uuid) {
-              _context7.next = 5;
+            order_uuid = req.body.order_uuid;
+            if (!order_uuid) {
+              _context7.next = 6;
               break;
             }
-            _context7.next = 3;
-            return _orderService["default"].handleConfirmOrder(req.body.uuid, (_req$user2 = req.user) === null || _req$user2 === void 0 ? void 0 : _req$user2.phone_number);
-          case 3:
+            _context7.next = 4;
+            return _orderService["default"].handleUpdateOrder(req.body, (_req$user = req.user) === null || _req$user === void 0 ? void 0 : _req$user.phone_number);
+          case 4:
             data = _context7.sent;
-            return _context7.abrupt("return", res.status(200).json({
-              code: data.code,
-              message: data.message
-            }));
-          case 5:
-            return _context7.abrupt("return", res.status(200).json({
-              code: 1,
-              message: "missing parameter(s)"
-            }));
+            return _context7.abrupt("return", res.status(200).json(data));
           case 6:
+            return _context7.abrupt("return", res.status(400).json({
+              code: _index.ResponseCode.MISSING_PARAMETER,
+              message: "Missing parameter(s)."
+            }));
+          case 7:
           case "end":
             return _context7.stop();
         }
       }
     }, _callee7);
   }));
-  return function confirmOrder(_x13, _x14) {
+  return function updateOrder(_x13, _x14) {
     return _ref7.apply(this, arguments);
   };
 }();
-var deliveryOrder = /*#__PURE__*/function () {
+var confirmOrder = /*#__PURE__*/function () {
   var _ref8 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee8(req, res) {
-    var _req$user3, data;
+    var _req$user2, data;
     return _regeneratorRuntime().wrap(function _callee8$(_context8) {
       while (1) {
         switch (_context8.prev = _context8.next) {
@@ -266,7 +254,7 @@ var deliveryOrder = /*#__PURE__*/function () {
               break;
             }
             _context8.next = 3;
-            return _orderService["default"].handleDeliveryOrder(req.body.uuid, (_req$user3 = req.user) === null || _req$user3 === void 0 ? void 0 : _req$user3.phone_number);
+            return _orderService["default"].handleConfirmOrder(req.body.uuid, (_req$user2 = req.user) === null || _req$user2 === void 0 ? void 0 : _req$user2.phone_number);
           case 3:
             data = _context8.sent;
             return _context8.abrupt("return", res.status(200).json({
@@ -285,13 +273,13 @@ var deliveryOrder = /*#__PURE__*/function () {
       }
     }, _callee8);
   }));
-  return function deliveryOrder(_x15, _x16) {
+  return function confirmOrder(_x15, _x16) {
     return _ref8.apply(this, arguments);
   };
 }();
-var finishedOrder = /*#__PURE__*/function () {
+var deliveryOrder = /*#__PURE__*/function () {
   var _ref9 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee9(req, res) {
-    var _req$user4, data;
+    var _req$user3, data;
     return _regeneratorRuntime().wrap(function _callee9$(_context9) {
       while (1) {
         switch (_context9.prev = _context9.next) {
@@ -301,7 +289,7 @@ var finishedOrder = /*#__PURE__*/function () {
               break;
             }
             _context9.next = 3;
-            return _orderService["default"].handleFinishedOrder(req.body.uuid, (_req$user4 = req.user) === null || _req$user4 === void 0 ? void 0 : _req$user4.phone_number);
+            return _orderService["default"].handleDeliveryOrder(req.body.uuid, (_req$user3 = req.user) === null || _req$user3 === void 0 ? void 0 : _req$user3.phone_number);
           case 3:
             data = _context9.sent;
             return _context9.abrupt("return", res.status(200).json({
@@ -320,13 +308,13 @@ var finishedOrder = /*#__PURE__*/function () {
       }
     }, _callee9);
   }));
-  return function finishedOrder(_x17, _x18) {
+  return function deliveryOrder(_x17, _x18) {
     return _ref9.apply(this, arguments);
   };
 }();
-var cancelOrder = /*#__PURE__*/function () {
+var finishedOrder = /*#__PURE__*/function () {
   var _ref10 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee10(req, res) {
-    var _req$user5, data;
+    var _req$user4, data;
     return _regeneratorRuntime().wrap(function _callee10$(_context10) {
       while (1) {
         switch (_context10.prev = _context10.next) {
@@ -336,7 +324,7 @@ var cancelOrder = /*#__PURE__*/function () {
               break;
             }
             _context10.next = 3;
-            return _orderService["default"].handleCancelOrder(req.body.uuid, (_req$user5 = req.user) === null || _req$user5 === void 0 ? void 0 : _req$user5.phone_number);
+            return _orderService["default"].handleFinishedOrder(req.body.uuid, (_req$user4 = req.user) === null || _req$user4 === void 0 ? void 0 : _req$user4.phone_number);
           case 3:
             data = _context10.sent;
             return _context10.abrupt("return", res.status(200).json({
@@ -355,23 +343,23 @@ var cancelOrder = /*#__PURE__*/function () {
       }
     }, _callee10);
   }));
-  return function cancelOrder(_x19, _x20) {
+  return function finishedOrder(_x19, _x20) {
     return _ref10.apply(this, arguments);
   };
 }();
-var deleteOrder = /*#__PURE__*/function () {
+var cancelOrder = /*#__PURE__*/function () {
   var _ref11 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee11(req, res) {
-    var data;
+    var _req$user5, data;
     return _regeneratorRuntime().wrap(function _callee11$(_context11) {
       while (1) {
         switch (_context11.prev = _context11.next) {
           case 0:
-            if (!(req.body.id || req.body.uuid || req.body.order_uuid)) {
+            if (!req.body.uuid) {
               _context11.next = 5;
               break;
             }
             _context11.next = 3;
-            return _orderService["default"].handleDeleteOrder(req.body);
+            return _orderService["default"].handleCancelOrder(req.body.uuid, (_req$user5 = req.user) === null || _req$user5 === void 0 ? void 0 : _req$user5.phone_number);
           case 3:
             data = _context11.sent;
             return _context11.abrupt("return", res.status(200).json({
@@ -390,13 +378,49 @@ var deleteOrder = /*#__PURE__*/function () {
       }
     }, _callee11);
   }));
-  return function deleteOrder(_x21, _x22) {
+  return function cancelOrder(_x21, _x22) {
     return _ref11.apply(this, arguments);
+  };
+}();
+var deleteOrder = /*#__PURE__*/function () {
+  var _ref12 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee12(req, res) {
+    var data;
+    return _regeneratorRuntime().wrap(function _callee12$(_context12) {
+      while (1) {
+        switch (_context12.prev = _context12.next) {
+          case 0:
+            if (!(req.body.id || req.body.uuid || req.body.order_uuid)) {
+              _context12.next = 5;
+              break;
+            }
+            _context12.next = 3;
+            return _orderService["default"].handleDeleteOrder(req.body);
+          case 3:
+            data = _context12.sent;
+            return _context12.abrupt("return", res.status(200).json({
+              code: data.code,
+              message: data.message
+            }));
+          case 5:
+            return _context12.abrupt("return", res.status(200).json({
+              code: 1,
+              message: "missing parameter(s)"
+            }));
+          case 6:
+          case "end":
+            return _context12.stop();
+        }
+      }
+    }, _callee12);
+  }));
+  return function deleteOrder(_x23, _x24) {
+    return _ref12.apply(this, arguments);
   };
 }();
 var _default = {
   getPaymentMethods: getPaymentMethods,
   getOrderStatuses: getOrderStatuses,
+  countOrders: countOrders,
   getAllOrder: getAllOrder,
   getOrder: getOrder,
   createOrder: createOrder,

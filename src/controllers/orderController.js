@@ -12,11 +12,16 @@ const getOrderStatuses = async (req, res) => {
     return res.status(200).json(data);
 };
 
-const getOrder = async (req, res) => {
-    const { order_uuid, encoded_uuids, phone_number } = req.query;
+const countOrders = async (req, res) => {
+    const data = await orderService.handleCountOrders();
+    return res.status(200).json(data);
+};
 
-    if (order_uuid) {
-        const data = await orderService.handleGetOneOrderByUuid(order_uuid);
+const getOrder = async (req, res) => {
+    const { order_uuid, order_id, encoded_uuids, phone_number } = req.query;
+
+    if (order_uuid || order_id) {
+        const data = await orderService.handleGetOneOrderByUuid(order_uuid || order_id);
         return res.status(200).json(data);
     }
 
@@ -168,6 +173,7 @@ let deleteOrder = async (req, res) => {
 export default {
     getPaymentMethods,
     getOrderStatuses,
+    countOrders,
     getAllOrder,
     getOrder,
     createOrder,

@@ -301,32 +301,36 @@ var customerRegister = /*#__PURE__*/function () {
 }();
 var customerUpdateProfile = /*#__PURE__*/function () {
   var _ref9 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee9(req, res) {
-    var _req$body5, email, phoneNumber, name, birth, data;
+    var _req$body5, email, phone_number, phoneNumber, name, birth, address, avatar, bio, normalizedPhoneNumber, data;
     return _regeneratorRuntime().wrap(function _callee9$(_context9) {
       while (1) {
         switch (_context9.prev = _context9.next) {
           case 0:
-            _req$body5 = req.body, email = _req$body5.email, phoneNumber = _req$body5.phoneNumber, name = _req$body5.name, birth = _req$body5.birth;
-            if (!(!phoneNumber || !email || !name || !birth)) {
-              _context9.next = 3;
+            _req$body5 = req.body, email = _req$body5.email, phone_number = _req$body5.phone_number, phoneNumber = _req$body5.phoneNumber, name = _req$body5.name, birth = _req$body5.birth, address = _req$body5.address, avatar = _req$body5.avatar, bio = _req$body5.bio;
+            normalizedPhoneNumber = phone_number || phoneNumber;
+            if (!(normalizedPhoneNumber && email && name)) {
+              _context9.next = 7;
               break;
             }
-            return _context9.abrupt("return", res.status(500).json({
-              code: ResponseCode.AUTHENTICATION_ERROR,
-              message: "Missing information."
-            }));
-          case 3:
             _context9.next = 5;
             return customerAuthService.handleUpdateProfile({
               email: email,
-              phoneNumber: phoneNumber,
+              phone_number: normalizedPhoneNumber,
               name: name,
-              birth: birth
+              birth: birth,
+              address: address,
+              avatar: avatar,
+              bio: bio
             });
           case 5:
             data = _context9.sent;
             return _context9.abrupt("return", res.status(200).json(data));
           case 7:
+            return _context9.abrupt("return", res.status(400).json({
+              code: ResponseCode.MISSING_PARAMETER,
+              message: "Missing parameter(s). Check again."
+            }));
+          case 8:
           case "end":
             return _context9.stop();
         }
@@ -410,7 +414,7 @@ var changeCustomerPassword = /*#__PURE__*/function () {
       while (1) {
         switch (_context12.prev = _context12.next) {
           case 0:
-            phoneNumber = req.body.phoneNumber;
+            phoneNumber = req.body.phone_number || req.body.phoneNumber;
             password = req.body.password;
             newPassword = req.body.newPassword;
             if (!(!phoneNumber || !password || !newPassword)) {

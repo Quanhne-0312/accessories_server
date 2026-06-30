@@ -35,9 +35,11 @@ var handleLogin = /*#__PURE__*/function () {
             _context.next = 3;
             return _models["default"].User.findOne({
               where: _defineProperty({}, Op.or, [{
-                phone_number: username
+                phone_number: username,
+                role_id: 3
               }, {
-                email: username
+                email: username,
+                role_id: 3
               }])
             });
           case 3:
@@ -342,6 +344,193 @@ var handleRefreshTokens = /*#__PURE__*/function () {
     return _ref4.apply(this, arguments);
   };
 }();
+var handleUpdateProfile = /*#__PURE__*/function () {
+  var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6(profile) {
+    var t, _profile$birth, _profile$bio, user, updates, _yield$db$Image$findO, _yield$db$Image$findO2, image, created;
+    return _regeneratorRuntime().wrap(function _callee6$(_context6) {
+      while (1) {
+        switch (_context6.prev = _context6.next) {
+          case 0:
+            _context6.next = 2;
+            return _database["default"].transaction();
+          case 2:
+            t = _context6.sent;
+            _context6.prev = 3;
+            _context6.next = 6;
+            return _models["default"].User.findOne({
+              where: {
+                phone_number: profile.phone_number,
+                email: profile.email,
+                role_id: 3
+              },
+              transaction: t
+            });
+          case 6:
+            user = _context6.sent;
+            if (user) {
+              _context6.next = 11;
+              break;
+            }
+            _context6.next = 10;
+            return t.rollback();
+          case 10:
+            return _context6.abrupt("return", {
+              code: _constant.ResponseCode.FILE_NOT_FOUND,
+              message: "Invalid account."
+            });
+          case 11:
+            updates = {
+              name: profile.name,
+              birth: (_profile$birth = profile.birth) !== null && _profile$birth !== void 0 ? _profile$birth : null,
+              bio: (_profile$bio = profile.bio) !== null && _profile$bio !== void 0 ? _profile$bio : null
+            };
+            if (profile.address) {
+              updates.address = typeof profile.address === "string" ? profile.address : handleConvertAddressType(profile.address);
+            }
+            _context6.next = 15;
+            return _models["default"].User.update(updates, {
+              where: {
+                id: user.id
+              },
+              transaction: t
+            });
+          case 15:
+            if (!profile.avatar) {
+              _context6.next = 25;
+              break;
+            }
+            _context6.next = 18;
+            return _models["default"].Image.findOrCreate({
+              where: {
+                target_id: user.id,
+                target_type: "avatar"
+              },
+              defaults: {
+                target_id: user.id,
+                target_type: "avatar",
+                public_id: profile.avatar.public_id,
+                secure_url: profile.avatar.secure_url,
+                thumbnail_url: profile.avatar.thumbnail_url
+              },
+              transaction: t
+            });
+          case 18:
+            _yield$db$Image$findO = _context6.sent;
+            _yield$db$Image$findO2 = _slicedToArray(_yield$db$Image$findO, 2);
+            image = _yield$db$Image$findO2[0];
+            created = _yield$db$Image$findO2[1];
+            if (created) {
+              _context6.next = 25;
+              break;
+            }
+            _context6.next = 25;
+            return _models["default"].Image.update({
+              public_id: profile.avatar.public_id,
+              secure_url: profile.avatar.secure_url,
+              thumbnail_url: profile.avatar.thumbnail_url
+            }, {
+              where: {
+                id: image.id
+              },
+              transaction: t
+            });
+          case 25:
+            _context6.next = 27;
+            return t.commit();
+          case 27:
+            return _context6.abrupt("return", {
+              code: _constant.ResponseCode.SUCCESS,
+              message: "Update profile successfully."
+            });
+          case 30:
+            _context6.prev = 30;
+            _context6.t0 = _context6["catch"](3);
+            _context6.next = 34;
+            return t.rollback();
+          case 34:
+            console.log(_context6.t0);
+            return _context6.abrupt("return", {
+              code: _constant.ResponseCode.INTERNAL_SERVER_ERROR,
+              message: "Error occurs, check again!"
+            });
+          case 36:
+          case "end":
+            return _context6.stop();
+        }
+      }
+    }, _callee6, null, [[3, 30]]);
+  }));
+  return function handleUpdateProfile(_x8) {
+    return _ref6.apply(this, arguments);
+  };
+}();
+var handleChangePassword = /*#__PURE__*/function () {
+  var _ref7 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee7(phoneNumber, password, newPassword) {
+    var user;
+    return _regeneratorRuntime().wrap(function _callee7$(_context7) {
+      while (1) {
+        switch (_context7.prev = _context7.next) {
+          case 0:
+            _context7.prev = 0;
+            _context7.next = 3;
+            return _models["default"].User.findOne({
+              where: {
+                phone_number: phoneNumber,
+                role_id: 3
+              }
+            });
+          case 3:
+            user = _context7.sent;
+            if (!(!user || !_bcryptjs["default"].compareSync(password, user.password))) {
+              _context7.next = 6;
+              break;
+            }
+            return _context7.abrupt("return", {
+              code: _constant.ResponseCode.AUTHENTICATION_ERROR,
+              message: "Incorrect phone number or password."
+            });
+          case 6:
+            if (isValidPassword(newPassword)) {
+              _context7.next = 8;
+              break;
+            }
+            return _context7.abrupt("return", {
+              code: _constant.ResponseCode.VALIDATION_ERROR,
+              message: "Password must be longer than 6 characters, start with an uppercase letter and contain a number."
+            });
+          case 8:
+            _context7.next = 10;
+            return _models["default"].User.update({
+              password: hashPassword(newPassword)
+            }, {
+              where: {
+                id: user.id
+              }
+            });
+          case 10:
+            return _context7.abrupt("return", {
+              code: _constant.ResponseCode.SUCCESS,
+              message: "Password has been changed."
+            });
+          case 13:
+            _context7.prev = 13;
+            _context7.t0 = _context7["catch"](0);
+            console.log(_context7.t0);
+            return _context7.abrupt("return", {
+              code: _constant.ResponseCode.INTERNAL_SERVER_ERROR,
+              message: "Error occurs, check again!"
+            });
+          case 17:
+          case "end":
+            return _context7.stop();
+        }
+      }
+    }, _callee7, null, [[0, 13]]);
+  }));
+  return function handleChangePassword(_x9, _x10, _x11) {
+    return _ref7.apply(this, arguments);
+  };
+}();
 var handleGenerateAccessToken = function handleGenerateAccessToken(user) {
   var accessToken = _jsonwebtoken["default"].sign({
     time: Date(),
@@ -354,13 +543,13 @@ var handleGenerateAccessToken = function handleGenerateAccessToken(user) {
   return accessToken;
 };
 var handleGenerateRefreshToken = /*#__PURE__*/function () {
-  var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6(user) {
+  var _ref8 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee8(user) {
     var newRefreshToken, expirationDate, newRecords, _yield$db$RefreshToke, _yield$db$RefreshToke2, refreshToken, created;
-    return _regeneratorRuntime().wrap(function _callee6$(_context6) {
+    return _regeneratorRuntime().wrap(function _callee8$(_context8) {
       while (1) {
-        switch (_context6.prev = _context6.next) {
+        switch (_context8.prev = _context8.next) {
           case 0:
-            _context6.prev = 0;
+            _context8.prev = 0;
             newRefreshToken = _jsonwebtoken["default"].sign({
               time: Date(),
               email: user.email,
@@ -375,7 +564,7 @@ var handleGenerateRefreshToken = /*#__PURE__*/function () {
               token: newRefreshToken,
               expirationDate: expirationDate
             };
-            _context6.next = 6;
+            _context8.next = 6;
             return _models["default"].RefreshToken.findOrCreate({
               where: {
                 phone_number: user.phone_number
@@ -383,15 +572,15 @@ var handleGenerateRefreshToken = /*#__PURE__*/function () {
               defaults: newRecords
             });
           case 6:
-            _yield$db$RefreshToke = _context6.sent;
+            _yield$db$RefreshToke = _context8.sent;
             _yield$db$RefreshToke2 = _slicedToArray(_yield$db$RefreshToke, 2);
             refreshToken = _yield$db$RefreshToke2[0];
             created = _yield$db$RefreshToke2[1];
             if (created) {
-              _context6.next = 13;
+              _context8.next = 13;
               break;
             }
-            _context6.next = 13;
+            _context8.next = 13;
             return _models["default"].RefreshToken.update({
               token: newRefreshToken,
               expirationDate: expirationDate
@@ -401,20 +590,20 @@ var handleGenerateRefreshToken = /*#__PURE__*/function () {
               }
             });
           case 13:
-            return _context6.abrupt("return", newRefreshToken);
+            return _context8.abrupt("return", newRefreshToken);
           case 16:
-            _context6.prev = 16;
-            _context6.t0 = _context6["catch"](0);
-            throw _context6.t0;
+            _context8.prev = 16;
+            _context8.t0 = _context8["catch"](0);
+            throw _context8.t0;
           case 19:
           case "end":
-            return _context6.stop();
+            return _context8.stop();
         }
       }
-    }, _callee6, null, [[0, 16]]);
+    }, _callee8, null, [[0, 16]]);
   }));
-  return function handleGenerateRefreshToken(_x8) {
-    return _ref6.apply(this, arguments);
+  return function handleGenerateRefreshToken(_x12) {
+    return _ref8.apply(this, arguments);
   };
 }();
 
@@ -422,41 +611,41 @@ var handleGenerateRefreshToken = /*#__PURE__*/function () {
 
 var isExistPhone = function isExistPhone(currentPhone) {
   return new Promise( /*#__PURE__*/function () {
-    var _ref7 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee7(resolve, reject) {
+    var _ref9 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee9(resolve, reject) {
       var customer;
-      return _regeneratorRuntime().wrap(function _callee7$(_context7) {
+      return _regeneratorRuntime().wrap(function _callee9$(_context9) {
         while (1) {
-          switch (_context7.prev = _context7.next) {
+          switch (_context9.prev = _context9.next) {
             case 0:
-              _context7.prev = 0;
-              _context7.next = 3;
+              _context9.prev = 0;
+              _context9.next = 3;
               return _models["default"].Customer.findOne({
                 where: {
                   phoneNumber: currentPhone
                 }
               });
             case 3:
-              customer = _context7.sent;
+              customer = _context9.sent;
               if (customer) {
                 resolve(true);
               } else {
                 resolve(false);
               }
-              _context7.next = 10;
+              _context9.next = 10;
               break;
             case 7:
-              _context7.prev = 7;
-              _context7.t0 = _context7["catch"](0);
-              reject(_context7.t0);
+              _context9.prev = 7;
+              _context9.t0 = _context9["catch"](0);
+              reject(_context9.t0);
             case 10:
             case "end":
-              return _context7.stop();
+              return _context9.stop();
           }
         }
-      }, _callee7, null, [[0, 7]]);
+      }, _callee9, null, [[0, 7]]);
     }));
-    return function (_x9, _x10) {
-      return _ref7.apply(this, arguments);
+    return function (_x13, _x14) {
+      return _ref9.apply(this, arguments);
     };
   }());
 };
@@ -472,9 +661,15 @@ var toPlainObject = function toPlainObject(data) {
     plain: true
   }) : _objectSpread({}, data);
 };
+var handleConvertAddressType = function handleConvertAddressType(address) {
+  var values = [address.location, address.ward, address.district, address.province];
+  return values.filter(Boolean).join(" - ");
+};
 module.exports = {
   handleLogin: handleLogin,
   handleLogout: handleLogout,
   handleRegister: handleRegister,
-  handleRefreshTokens: handleRefreshTokens
+  handleRefreshTokens: handleRefreshTokens,
+  handleUpdateProfile: handleUpdateProfile,
+  handleChangePassword: handleChangePassword
 };

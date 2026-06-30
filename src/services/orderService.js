@@ -47,6 +47,39 @@ const handleGetOrderStatuses = async () => {
     }
 };
 
+const handleCountOrders = async () => {
+    try {
+        const [statuses, orders] = await Promise.all([
+            db.Status.findAll({
+                order: [["id", "ASC"]],
+                raw: true,
+            }),
+            db.Order.findAll({
+                attributes: ["status_id"],
+                raw: true,
+            }),
+        ]);
+
+        const result = statuses.map((status) => ({
+            ...status,
+            slug: status.code,
+            order_count: orders.filter((order) => Number(order.status_id) === Number(status.id)).length,
+        }));
+
+        return {
+            code: ResponseCode.SUCCESS,
+            message: "Retrieved orders count successfully",
+            result,
+        };
+    } catch (error) {
+        console.log(error);
+        return {
+            code: ResponseCode.DATABASE_ERROR,
+            message: "An error occurred while counting orders.",
+        };
+    }
+};
+
 const handleGetAllOrders = async (status_id, page, keyword) => {
     const t = sequelize.transaction();
     const currentPage = page && !_.isNaN(page) ? page : 1;
@@ -936,6 +969,7 @@ handleDeleteOrder = async ({ id, uuid, order_uuid }) => {
 module.exports = {
     handleGetPaymentMethods,
     handleGetOrderStatuses,
+    handleCountOrders,
     handleGetAllOrders,
     handleGetOneOrderByUuid,
     handleGetOrdersByUuids,

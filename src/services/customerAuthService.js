@@ -15,9 +15,11 @@ const handleLogin = async (username, password) => {
                 [Op.or]: [
                     {
                         phone_number: username,
+                        role_id: 3,
                     },
                     {
                         email: username,
+                        role_id: 3,
                     },
                 ],
             },
@@ -221,6 +223,141 @@ const handleRefreshTokens = async (refreshToken) => {
     });
 };
 
+const handleUpdateProfile = async (profile) => {
+    const t = await sequelize.transaction();
+
+    try {
+        const user = await db.User.findOne({
+            where: {
+                phone_number: profile.phone_number,
+                email: profile.email,
+                role_id: 3,
+            },
+            transaction: t,
+        });
+
+        if (!user) {
+            await t.rollback();
+            return {
+                code: ResponseCode.FILE_NOT_FOUND,
+                message: "Invalid account.",
+            };
+        }
+
+        const updates = {
+            name: profile.name,
+            birth: profile.birth ?? null,
+            bio: profile.bio ?? null,
+        };
+
+        if (profile.address) {
+            updates.address =
+                typeof profile.address === "string" ? profile.address : handleConvertAddressType(profile.address);
+        }
+
+        await db.User.update(updates, {
+            where: {
+                id: user.id,
+            },
+            transaction: t,
+        });
+
+        if (profile.avatar) {
+            const [image, created] = await db.Image.findOrCreate({
+                where: {
+                    target_id: user.id,
+                    target_type: "avatar",
+                },
+                defaults: {
+                    target_id: user.id,
+                    target_type: "avatar",
+                    public_id: profile.avatar.public_id,
+                    secure_url: profile.avatar.secure_url,
+                    thumbnail_url: profile.avatar.thumbnail_url,
+                },
+                transaction: t,
+            });
+
+            if (!created) {
+                await db.Image.update(
+                    {
+                        public_id: profile.avatar.public_id,
+                        secure_url: profile.avatar.secure_url,
+                        thumbnail_url: profile.avatar.thumbnail_url,
+                    },
+                    {
+                        where: {
+                            id: image.id,
+                        },
+                        transaction: t,
+                    },
+                );
+            }
+        }
+
+        await t.commit();
+
+        return {
+            code: ResponseCode.SUCCESS,
+            message: "Update profile successfully.",
+        };
+    } catch (error) {
+        await t.rollback();
+        console.log(error);
+        return {
+            code: ResponseCode.INTERNAL_SERVER_ERROR,
+            message: "Error occurs, check again!",
+        };
+    }
+};
+
+const handleChangePassword = async (phoneNumber, password, newPassword) => {
+    try {
+        const user = await db.User.findOne({
+            where: {
+                phone_number: phoneNumber,
+                role_id: 3,
+            },
+        });
+
+        if (!user || !bcrypt.compareSync(password, user.password)) {
+            return {
+                code: ResponseCode.AUTHENTICATION_ERROR,
+                message: "Incorrect phone number or password.",
+            };
+        }
+
+        if (!isValidPassword(newPassword)) {
+            return {
+                code: ResponseCode.VALIDATION_ERROR,
+                message: "Password must be longer than 6 characters, start with an uppercase letter and contain a number.",
+            };
+        }
+
+        await db.User.update(
+            {
+                password: hashPassword(newPassword),
+            },
+            {
+                where: {
+                    id: user.id,
+                },
+            },
+        );
+
+        return {
+            code: ResponseCode.SUCCESS,
+            message: "Password has been changed.",
+        };
+    } catch (error) {
+        console.log(error);
+        return {
+            code: ResponseCode.INTERNAL_SERVER_ERROR,
+            message: "Error occurs, check again!",
+        };
+    }
+};
+
 const handleGenerateAccessToken = (user) => {
     const accessToken = jwt.sign(
         {
@@ -321,9 +458,16 @@ const toPlainObject = (data) => {
     return typeof data.get === "function" ? data.get({ plain: true }) : { ...data };
 };
 
+const handleConvertAddressType = (address) => {
+    const values = [address.location, address.ward, address.district, address.province];
+    return values.filter(Boolean).join(" - ");
+};
+
 module.exports = {
     handleLogin,
     handleLogout,
     handleRegister,
     handleRefreshTokens,
+    handleUpdateProfile,
+    handleChangePassword,
 };

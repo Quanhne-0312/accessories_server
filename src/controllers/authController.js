@@ -138,23 +138,26 @@ const customerRegister = async (req, res) => {
 };
 
 const customerUpdateProfile = async (req, res) => {
-    const { email, phoneNumber, name, birth } = req.body;
+    const { email, phone_number, phoneNumber, name, birth, address, avatar, bio } = req.body;
+    const normalizedPhoneNumber = phone_number || phoneNumber;
 
-    if (!phoneNumber || !email || !name || !birth) {
-        return res.status(500).json({
-            code: ResponseCode.AUTHENTICATION_ERROR,
-            message: "Missing information.",
+    if (normalizedPhoneNumber && email && name) {
+        const data = await customerAuthService.handleUpdateProfile({
+            email,
+            phone_number: normalizedPhoneNumber,
+            name,
+            birth,
+            address,
+            avatar,
+            bio,
         });
+        return res.status(200).json(data);
     }
 
-    const data = await customerAuthService.handleUpdateProfile({
-        email,
-        phoneNumber,
-        name,
-        birth,
+    return res.status(400).json({
+        code: ResponseCode.MISSING_PARAMETER,
+        message: "Missing parameter(s). Check again.",
     });
-
-    return res.status(200).json(data);
 };
 
 let customerVerifyRefreshToken = async (req, res) => {
@@ -188,7 +191,7 @@ let customerRefreshTokens = async (req, res) => {
 };
 
 let changeCustomerPassword = async (req, res) => {
-    let phoneNumber = req.body.phoneNumber;
+    let phoneNumber = req.body.phone_number || req.body.phoneNumber;
     let password = req.body.password;
     let newPassword = req.body.newPassword;
 
