@@ -677,28 +677,58 @@ let handleCancelOrder = (uuid) => {
     });
 };
 
-let handleDeleteOrder = (orderId) => {
-    return new Promise(async (resolve, reject) => {
-        let data = {};
-        try {
-            let targetOrder = await db.Order.findOne({
-                where: { id: orderId },
-            });
-            if (targetOrder) {
-                await db.Order.destroy({
-                    where: { id: orderId },
-                });
-                data.code = 0;
-                data.message = "delete order success";
-            } else {
-                data.code = 1;
-                data.message = "invalid order";
-            }
-            resolve(data);
-        } catch (error) {
-            reject(error);
+let handleDeleteOrder = async (orderRef) => {
+    const orderId = typeof orderRef === "object" ? orderRef.id : orderRef;
+    const orderUuid = typeof orderRef === "object" ? orderRef.order_uuid || orderRef.uuid : null;
+    const where = orderId ? { id: orderId } : { order_uuid: orderUuid };
+
+    if (!where.id && !where.order_uuid) {
+        return {
+            code: ResponseCode.MISSING_PARAMETER,
+            message: "Missing order identifier.",
+        };
+    }
+
+    const t = await sequelize.transaction();
+
+    try {
+        const targetOrder = await db.Order.findOne({
+            where,
+            transaction: t,
+        });
+
+        if (!targetOrder) {
+            await t.rollback();
+            return {
+                code: ResponseCode.FILE_NOT_FOUND,
+                message: "Order not found.",
+            };
         }
-    });
+
+        await db.OrderDetail.destroy({
+            where: { order_uuid: targetOrder.order_uuid },
+            transaction: t,
+        });
+
+        await db.HistoryOrderUpdate.destroy({
+            where: { order_uuid: targetOrder.order_uuid },
+            transaction: t,
+        });
+
+        await db.Order.destroy({
+            where: { id: targetOrder.id },
+            transaction: t,
+        });
+
+        await t.commit();
+        return {
+            code: ResponseCode.SUCCESS,
+            message: "Delete order successfully.",
+        };
+    } catch (error) {
+        await t.rollback();
+        throw error;
+    }
 };
 
 const getEmployeeIdByPhone = async (phoneNumber) => {
@@ -848,6 +878,14 @@ handleDeleteOrder = async ({ id, uuid, order_uuid }) => {
     const t = await sequelize.transaction();
     const where = order_uuid || uuid ? { order_uuid: order_uuid || uuid } : { id };
 
+    if (!where.id && !where.order_uuid) {
+        await t.rollback();
+        return {
+            code: ResponseCode.MISSING_PARAMETER,
+            message: "Missing order identifier.",
+        };
+    }
+
     try {
         const targetOrder = await db.Order.findOne({
             where,
@@ -882,7 +920,7 @@ handleDeleteOrder = async ({ id, uuid, order_uuid }) => {
 
         return {
             code: ResponseCode.SUCCESS,
-            message: "delete order success",
+            message: "Delete order successfully.",
         };
     } catch (error) {
         await t.rollback();
