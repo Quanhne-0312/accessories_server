@@ -71,6 +71,7 @@ var initRoutes = function initRoutes(app) {
   router.get("/api/order/count", _verifyAccessToken["default"], staffOnly, _orderController["default"].countOrders);
   router.get("/api/order/get", _orderController["default"].getOrder);
   router.post("/api/order/checkout", _orderController["default"].createOrder);
+  router.post("/api/order/customer-cancel", _verifyAccessToken["default"], _orderController["default"].customerCancelOrder);
   router.get("/api/auth/order/get", _verifyAccessToken["default"], staffOnly, _orderController["default"].getAllOrder);
   router.post("/api/order/create", _verifyAccessToken["default"], staffOnly, _orderController["default"].createOrder);
   router.put("/api/order/update", _verifyAccessToken["default"], staffOnly, _orderController["default"].updateOrder);

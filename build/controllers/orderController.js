@@ -382,39 +382,64 @@ var cancelOrder = /*#__PURE__*/function () {
     return _ref11.apply(this, arguments);
   };
 }();
-var deleteOrder = /*#__PURE__*/function () {
+var customerCancelOrder = /*#__PURE__*/function () {
   var _ref12 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee12(req, res) {
-    var data;
+    var _req$user6;
+    var _req$body2, order_uuid, uuid, data;
     return _regeneratorRuntime().wrap(function _callee12$(_context12) {
       while (1) {
         switch (_context12.prev = _context12.next) {
           case 0:
-            if (!(req.body.id || req.body.uuid || req.body.order_uuid)) {
-              _context12.next = 5;
-              break;
-            }
+            _req$body2 = req.body, order_uuid = _req$body2.order_uuid, uuid = _req$body2.uuid;
             _context12.next = 3;
-            return _orderService["default"].handleDeleteOrder(req.body);
+            return _orderService["default"].handleCustomerCancelOrder(order_uuid || uuid, (_req$user6 = req.user) === null || _req$user6 === void 0 ? void 0 : _req$user6.phone_number);
           case 3:
             data = _context12.sent;
-            return _context12.abrupt("return", res.status(200).json({
-              code: data.code,
-              message: data.message
-            }));
+            return _context12.abrupt("return", res.status(data.code === _index.ResponseCode.SUCCESS ? 200 : 400).json(data));
           case 5:
-            return _context12.abrupt("return", res.status(200).json({
-              code: 1,
-              message: "missing parameter(s)"
-            }));
-          case 6:
           case "end":
             return _context12.stop();
         }
       }
     }, _callee12);
   }));
-  return function deleteOrder(_x23, _x24) {
+  return function customerCancelOrder(_x23, _x24) {
     return _ref12.apply(this, arguments);
+  };
+}();
+var deleteOrder = /*#__PURE__*/function () {
+  var _ref13 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13(req, res) {
+    var data;
+    return _regeneratorRuntime().wrap(function _callee13$(_context13) {
+      while (1) {
+        switch (_context13.prev = _context13.next) {
+          case 0:
+            if (!(req.body.id || req.body.uuid || req.body.order_uuid)) {
+              _context13.next = 5;
+              break;
+            }
+            _context13.next = 3;
+            return _orderService["default"].handleDeleteOrder(req.body);
+          case 3:
+            data = _context13.sent;
+            return _context13.abrupt("return", res.status(200).json({
+              code: data.code,
+              message: data.message
+            }));
+          case 5:
+            return _context13.abrupt("return", res.status(200).json({
+              code: 1,
+              message: "missing parameter(s)"
+            }));
+          case 6:
+          case "end":
+            return _context13.stop();
+        }
+      }
+    }, _callee13);
+  }));
+  return function deleteOrder(_x25, _x26) {
+    return _ref13.apply(this, arguments);
   };
 }();
 var _default = {
@@ -429,6 +454,7 @@ var _default = {
   deliveryOrder: deliveryOrder,
   finishedOrder: finishedOrder,
   cancelOrder: cancelOrder,
+  customerCancelOrder: customerCancelOrder,
   deleteOrder: deleteOrder
 };
 exports["default"] = _default;

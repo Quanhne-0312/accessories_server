@@ -12,9 +12,12 @@ const handleRemoveImagesFromCloud = async (images) => {
     try {
         const publicIds = images
             .map((image) => image.public_id)
-            .filter((publicId) => publicId && !String(publicId).startsWith("seed-products/"));
+            .filter((publicId) => {
+                const value = String(publicId || "");
+                return value && !value.startsWith("seed-products/") && !value.startsWith("local-products/");
+            });
 
-        if (publicIds.length === 0) {
+        if (publicIds.length === 0 || !process.env.NODE_CLOUDINARY_NAME) {
             return true;
         }
 

@@ -1358,56 +1358,173 @@ handleFinishedOrder = function handleFinishedOrder(uuid, employeePhoneNumber) {
 handleCancelOrder = function handleCancelOrder(uuid, employeePhoneNumber) {
   return handleChangeOrderStatus(uuid, 5, employeePhoneNumber, "this order has been cancelled");
 };
-handleDeleteOrder = /*#__PURE__*/function () {
-  var _ref19 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17(_ref18) {
-    var id, uuid, order_uuid, t, where, targetOrder;
+var handleCustomerCancelOrder = /*#__PURE__*/function () {
+  var _ref18 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17(orderUuid, customerPhoneNumber) {
+    var t, order, currentStatusId;
     return _regeneratorRuntime().wrap(function _callee17$(_context17) {
       while (1) {
         switch (_context17.prev = _context17.next) {
           case 0:
-            id = _ref18.id, uuid = _ref18.uuid, order_uuid = _ref18.order_uuid;
-            _context17.next = 3;
+            if (!(!orderUuid || !customerPhoneNumber)) {
+              _context17.next = 2;
+              break;
+            }
+            return _context17.abrupt("return", {
+              code: _constant.ResponseCode.MISSING_PARAMETER,
+              message: "Missing parameter(s)."
+            });
+          case 2:
+            _context17.next = 4;
+            return _database["default"].transaction();
+          case 4:
+            t = _context17.sent;
+            _context17.prev = 5;
+            _context17.next = 8;
+            return _models["default"].Order.findOne({
+              where: {
+                order_uuid: orderUuid,
+                customer_phone_number: customerPhoneNumber
+              },
+              transaction: t
+            });
+          case 8:
+            order = _context17.sent;
+            if (order) {
+              _context17.next = 13;
+              break;
+            }
+            _context17.next = 12;
+            return t.rollback();
+          case 12:
+            return _context17.abrupt("return", {
+              code: _constant.ResponseCode.FILE_NOT_FOUND,
+              message: "Order not found."
+            });
+          case 13:
+            currentStatusId = Number(order.status_id);
+            if (!(currentStatusId === 5)) {
+              _context17.next = 18;
+              break;
+            }
+            _context17.next = 17;
+            return t.rollback();
+          case 17:
+            return _context17.abrupt("return", {
+              code: _constant.ResponseCode.VALIDATION_ERROR,
+              message: "Order has already been canceled."
+            });
+          case 18:
+            if (!(currentStatusId >= 3)) {
+              _context17.next = 22;
+              break;
+            }
+            _context17.next = 21;
+            return t.rollback();
+          case 21:
+            return _context17.abrupt("return", {
+              code: _constant.ResponseCode.VALIDATION_ERROR,
+              message: "Only processed or confirmed orders can be canceled by customer."
+            });
+          case 22:
+            _context17.next = 24;
+            return _models["default"].Order.update({
+              status_id: 5
+            }, {
+              where: {
+                id: order.id
+              },
+              transaction: t
+            });
+          case 24:
+            _context17.next = 26;
+            return _models["default"].HistoryOrderUpdate.create({
+              order_uuid: orderUuid,
+              employee_id: null,
+              status_id: 5,
+              description: "Customer ".concat(customerPhoneNumber, " canceled order")
+            }, {
+              transaction: t
+            });
+          case 26:
+            _context17.next = 28;
+            return t.commit();
+          case 28:
+            return _context17.abrupt("return", {
+              code: _constant.ResponseCode.SUCCESS,
+              message: "Cancel order successfully."
+            });
+          case 31:
+            _context17.prev = 31;
+            _context17.t0 = _context17["catch"](5);
+            _context17.next = 35;
+            return t.rollback();
+          case 35:
+            console.log(_context17.t0);
+            return _context17.abrupt("return", {
+              code: _constant.ResponseCode.DATABASE_ERROR,
+              message: "An error occurred while canceling the order."
+            });
+          case 37:
+          case "end":
+            return _context17.stop();
+        }
+      }
+    }, _callee17, null, [[5, 31]]);
+  }));
+  return function handleCustomerCancelOrder(_x24, _x25) {
+    return _ref18.apply(this, arguments);
+  };
+}();
+handleDeleteOrder = /*#__PURE__*/function () {
+  var _ref20 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee18(_ref19) {
+    var id, uuid, order_uuid, t, where, targetOrder;
+    return _regeneratorRuntime().wrap(function _callee18$(_context18) {
+      while (1) {
+        switch (_context18.prev = _context18.next) {
+          case 0:
+            id = _ref19.id, uuid = _ref19.uuid, order_uuid = _ref19.order_uuid;
+            _context18.next = 3;
             return _database["default"].transaction();
           case 3:
-            t = _context17.sent;
+            t = _context18.sent;
             where = order_uuid || uuid ? {
               order_uuid: order_uuid || uuid
             } : {
               id: id
             };
             if (!(!where.id && !where.order_uuid)) {
-              _context17.next = 9;
+              _context18.next = 9;
               break;
             }
-            _context17.next = 8;
+            _context18.next = 8;
             return t.rollback();
           case 8:
-            return _context17.abrupt("return", {
+            return _context18.abrupt("return", {
               code: _constant.ResponseCode.MISSING_PARAMETER,
               message: "Missing order identifier."
             });
           case 9:
-            _context17.prev = 9;
-            _context17.next = 12;
+            _context18.prev = 9;
+            _context18.next = 12;
             return _models["default"].Order.findOne({
               where: where,
               transaction: t
             });
           case 12:
-            targetOrder = _context17.sent;
+            targetOrder = _context18.sent;
             if (targetOrder) {
-              _context17.next = 17;
+              _context18.next = 17;
               break;
             }
-            _context17.next = 16;
+            _context18.next = 16;
             return t.rollback();
           case 16:
-            return _context17.abrupt("return", {
+            return _context18.abrupt("return", {
               code: _constant.ResponseCode.FILE_NOT_FOUND,
               message: "invalid order"
             });
           case 17:
-            _context17.next = 19;
+            _context18.next = 19;
             return Promise.all([_models["default"].HistoryOrderUpdate.destroy({
               where: {
                 order_uuid: targetOrder.order_uuid
@@ -1420,7 +1537,7 @@ handleDeleteOrder = /*#__PURE__*/function () {
               transaction: t
             })]);
           case 19:
-            _context17.next = 21;
+            _context18.next = 21;
             return _models["default"].Order.destroy({
               where: {
                 id: targetOrder.id
@@ -1428,33 +1545,33 @@ handleDeleteOrder = /*#__PURE__*/function () {
               transaction: t
             });
           case 21:
-            _context17.next = 23;
+            _context18.next = 23;
             return t.commit();
           case 23:
-            return _context17.abrupt("return", {
+            return _context18.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Delete order successfully."
             });
           case 26:
-            _context17.prev = 26;
-            _context17.t0 = _context17["catch"](9);
-            _context17.next = 30;
+            _context18.prev = 26;
+            _context18.t0 = _context18["catch"](9);
+            _context18.next = 30;
             return t.rollback();
           case 30:
-            console.log(_context17.t0);
-            return _context17.abrupt("return", {
+            console.log(_context18.t0);
+            return _context18.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "An error occurred while deleting the order."
             });
           case 32:
           case "end":
-            return _context17.stop();
+            return _context18.stop();
         }
       }
-    }, _callee17, null, [[9, 26]]);
+    }, _callee18, null, [[9, 26]]);
   }));
-  return function handleDeleteOrder(_x24) {
-    return _ref19.apply(this, arguments);
+  return function handleDeleteOrder(_x26) {
+    return _ref20.apply(this, arguments);
   };
 }();
 module.exports = {
@@ -1471,5 +1588,6 @@ module.exports = {
   handleDeliveryOrder: handleDeliveryOrder,
   handleFinishedOrder: handleFinishedOrder,
   handleCancelOrder: handleCancelOrder,
+  handleCustomerCancelOrder: handleCustomerCancelOrder,
   handleDeleteOrder: handleDeleteOrder
 };

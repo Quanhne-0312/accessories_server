@@ -907,6 +907,89 @@ handleCancelOrder = (uuid, employeePhoneNumber) => {
     return handleChangeOrderStatus(uuid, 5, employeePhoneNumber, "this order has been cancelled");
 };
 
+const handleCustomerCancelOrder = async (orderUuid, customerPhoneNumber) => {
+    if (!orderUuid || !customerPhoneNumber) {
+        return {
+            code: ResponseCode.MISSING_PARAMETER,
+            message: "Missing parameter(s).",
+        };
+    }
+
+    const t = await sequelize.transaction();
+
+    try {
+        const order = await db.Order.findOne({
+            where: {
+                order_uuid: orderUuid,
+                customer_phone_number: customerPhoneNumber,
+            },
+            transaction: t,
+        });
+
+        if (!order) {
+            await t.rollback();
+            return {
+                code: ResponseCode.FILE_NOT_FOUND,
+                message: "Order not found.",
+            };
+        }
+
+        const currentStatusId = Number(order.status_id);
+        if (currentStatusId === 5) {
+            await t.rollback();
+            return {
+                code: ResponseCode.VALIDATION_ERROR,
+                message: "Order has already been canceled.",
+            };
+        }
+
+        if (currentStatusId >= 3) {
+            await t.rollback();
+            return {
+                code: ResponseCode.VALIDATION_ERROR,
+                message: "Only processed or confirmed orders can be canceled by customer.",
+            };
+        }
+
+        await db.Order.update(
+            {
+                status_id: 5,
+            },
+            {
+                where: {
+                    id: order.id,
+                },
+                transaction: t,
+            },
+        );
+
+        await db.HistoryOrderUpdate.create(
+            {
+                order_uuid: orderUuid,
+                employee_id: null,
+                status_id: 5,
+                description: `Customer ${customerPhoneNumber} canceled order`,
+            },
+            { transaction: t },
+        );
+
+        await t.commit();
+
+        return {
+            code: ResponseCode.SUCCESS,
+            message: "Cancel order successfully.",
+        };
+    } catch (error) {
+        await t.rollback();
+        console.log(error);
+
+        return {
+            code: ResponseCode.DATABASE_ERROR,
+            message: "An error occurred while canceling the order.",
+        };
+    }
+};
+
 handleDeleteOrder = async ({ id, uuid, order_uuid }) => {
     const t = await sequelize.transaction();
     const where = order_uuid || uuid ? { order_uuid: order_uuid || uuid } : { id };
@@ -980,5 +1063,6 @@ module.exports = {
     handleDeliveryOrder,
     handleFinishedOrder,
     handleCancelOrder,
+    handleCustomerCancelOrder,
     handleDeleteOrder,
 };

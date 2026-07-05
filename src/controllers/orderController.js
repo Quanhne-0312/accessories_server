@@ -156,6 +156,12 @@ let cancelOrder = async (req, res) => {
     });
 };
 
+let customerCancelOrder = async (req, res) => {
+    const { order_uuid, uuid } = req.body;
+    const data = await orderService.handleCustomerCancelOrder(order_uuid || uuid, req.user?.phone_number);
+    return res.status(data.code === ResponseCode.SUCCESS ? 200 : 400).json(data);
+};
+
 let deleteOrder = async (req, res) => {
     if (req.body.id || req.body.uuid || req.body.order_uuid) {
         let data = await orderService.handleDeleteOrder(req.body);
@@ -182,5 +188,6 @@ export default {
     deliveryOrder,
     finishedOrder,
     cancelOrder,
+    customerCancelOrder,
     deleteOrder,
 };

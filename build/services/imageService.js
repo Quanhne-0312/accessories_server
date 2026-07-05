@@ -24,9 +24,10 @@ var handleRemoveImagesFromCloud = /*#__PURE__*/function () {
             publicIds = images.map(function (image) {
               return image.public_id;
             }).filter(function (publicId) {
-              return publicId && !String(publicId).startsWith("seed-products/");
+              var value = String(publicId || "");
+              return value && !value.startsWith("seed-products/") && !value.startsWith("local-products/");
             });
-            if (!(publicIds.length === 0)) {
+            if (!(publicIds.length === 0 || !process.env.NODE_CLOUDINARY_NAME)) {
               _context.next = 4;
               break;
             }

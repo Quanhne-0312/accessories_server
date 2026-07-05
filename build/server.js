@@ -12,9 +12,12 @@ var app = (0, _express["default"])();
 app.use((0, _cors["default"])({
   origin: true
 }));
-app.use(_bodyParser["default"].json());
+app.use(_bodyParser["default"].json({
+  limit: "25mb"
+}));
 app.use(_bodyParser["default"].urlencoded({
-  extended: true
+  extended: true,
+  limit: "25mb"
 }));
 (0, _web["default"])(app);
 (0, _connectdb["default"])();

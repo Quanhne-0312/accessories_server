@@ -71,6 +71,7 @@ let initRoutes = (app) => {
     router.get("/api/order/count", verifyAccessToken, staffOnly, orderController.countOrders);
     router.get("/api/order/get", orderController.getOrder);
     router.post("/api/order/checkout", orderController.createOrder);
+    router.post("/api/order/customer-cancel", verifyAccessToken, orderController.customerCancelOrder);
 
     router.get("/api/auth/order/get", verifyAccessToken, staffOnly, orderController.getAllOrder);
     router.post("/api/order/create", verifyAccessToken, staffOnly, orderController.createOrder);
