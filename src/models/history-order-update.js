@@ -10,6 +10,7 @@ module.exports = (sequelize, DataTypes) => {
             });
             HistoryOrderUpdate.belongsTo(models.Order, {
                 foreignKey: "order_uuid",
+                targetKey: "order_uuid",
             });
             HistoryOrderUpdate.belongsTo(models.Status, {
                 foreignKey: "status_id",
@@ -19,6 +20,12 @@ module.exports = (sequelize, DataTypes) => {
 
     HistoryOrderUpdate.init(
         {
+            order_uuid: {
+                type: DataTypes.STRING,
+                allowNull: false,
+            },
+            employee_id: DataTypes.INTEGER,
+            status_id: DataTypes.INTEGER,
             description: DataTypes.TEXT,
         },
         {

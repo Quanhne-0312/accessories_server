@@ -19,7 +19,7 @@ const userLogin = async (req, res) => {
 };
 
 const userLogout = async (req, res) => {
-    const { phone_number } = req.body;
+    const phone_number = req.user?.phone_number;
 
     if (phone_number) {
         const data = await userAuthService.handleLogout(phone_number);
@@ -48,11 +48,19 @@ const userRefresh = async (req, res) => {
 
 const updateProfile = async (req, res) => {
     const { name, phone_number, email, password, avatar, address, birth, bio } = req.body;
+    const authenticatedPhoneNumber = req.user?.phone_number;
 
-    if (name && phone_number && email) {
+    if (phone_number && authenticatedPhoneNumber && phone_number !== authenticatedPhoneNumber) {
+        return res.status(403).json({
+            code: ResponseCode.AUTHORIZATION_ERROR,
+            message: "You can only update your own profile.",
+        });
+    }
+
+    if (name && authenticatedPhoneNumber && email) {
         const data = await userAuthService.handleUpdateProfile({
             name,
-            phone_number,
+            phone_number: authenticatedPhoneNumber,
             email,
             password,
             avatar,
@@ -75,7 +83,7 @@ let changeUserPassword = async (req, res) => {
     let newPassword = req.body.newPassword;
 
     if (!username || !password || !newPassword) {
-        return res.status(500).json({
+        return res.status(400).json({
             code: ResponseCode.AUTHENTICATION_ERROR,
             message: "Missing infomation.",
         });
@@ -104,7 +112,7 @@ let customerLogin = async (req, res) => {
 };
 
 const customerLogout = async (req, res) => {
-    const { phone_number } = req.body;
+    const phone_number = req.user?.phone_number;
 
     if (phone_number) {
         const data = await customerAuthService.handleLogout(phone_number);
@@ -141,11 +149,19 @@ const customerRegister = async (req, res) => {
 const customerUpdateProfile = async (req, res) => {
     const { email, phone_number, phoneNumber, name, birth, address, avatar, bio } = req.body;
     const normalizedPhoneNumber = phone_number || phoneNumber;
+    const authenticatedPhoneNumber = req.user?.phone_number;
 
-    if (normalizedPhoneNumber && email && name) {
+    if (normalizedPhoneNumber && authenticatedPhoneNumber && normalizedPhoneNumber !== authenticatedPhoneNumber) {
+        return res.status(403).json({
+            code: ResponseCode.AUTHORIZATION_ERROR,
+            message: "You can only update your own profile.",
+        });
+    }
+
+    if (authenticatedPhoneNumber && email && name) {
         const data = await customerAuthService.handleUpdateProfile({
             email,
-            phone_number: normalizedPhoneNumber,
+            phone_number: authenticatedPhoneNumber,
             name,
             birth,
             address,
@@ -192,12 +208,20 @@ let customerRefreshTokens = async (req, res) => {
 };
 
 let changeCustomerPassword = async (req, res) => {
-    let phoneNumber = req.body.phone_number || req.body.phoneNumber;
+    let requestedPhoneNumber = req.body.phone_number || req.body.phoneNumber;
+    let phoneNumber = req.user?.phone_number;
     let password = req.body.password;
     let newPassword = req.body.newPassword;
 
+    if (requestedPhoneNumber && phoneNumber && requestedPhoneNumber !== phoneNumber) {
+        return res.status(403).json({
+            code: ResponseCode.AUTHORIZATION_ERROR,
+            message: "You can only change your own password.",
+        });
+    }
+
     if (!phoneNumber || !password || !newPassword) {
-        return res.status(500).json({
+        return res.status(400).json({
             code: ResponseCode.AUTHENTICATION_ERROR,
             message: "Missing infomation.",
         });

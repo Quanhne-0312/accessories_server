@@ -3,7 +3,9 @@ import jwt from "jsonwebtoken";
 import { ResponseCode } from "../constant";
 import db from "../models";
 const { Op } = require("sequelize");
-import sequelize from "../config/database";
+import { rollbackTransaction } from "../utils/transaction";
+const sequelize = db.sequelize;
+const STAFF_ROLE_IDS = new Set([1, 2, 4]);
 
 /** USER */
 
@@ -104,28 +106,27 @@ const handleLogin = async (username, password) => {
 };
 
 const handleLogout = async (phone_number) => {
-    const t = await sequelize.transaction();
+    let t;
     try {
-        await Promise.all([
-            db.User.update(
-                {
-                    last_login: Date.now(),
-                },
-                {
-                    where: {
-                        phone_number: phone_number,
-                    },
-                    transaction: t,
-                },
-            ),
-
-            db.RefreshToken.destroy({
+        t = await sequelize.transaction();
+        await db.User.update(
+            {
+                last_login: Date.now(),
+            },
+            {
                 where: {
                     phone_number: phone_number,
                 },
                 transaction: t,
-            }),
-        ]);
+            },
+        );
+
+        await db.RefreshToken.destroy({
+            where: {
+                phone_number: phone_number,
+            },
+            transaction: t,
+        });
 
         await t.commit();
 
@@ -134,7 +135,7 @@ const handleLogout = async (phone_number) => {
             message: "Logout successfully.",
         };
     } catch (error) {
-        await t.rollback();
+        await rollbackTransaction(t);
         console.log(error);
         return {
             code: ResponseCode.INTERNAL_SERVER_ERROR,
@@ -143,51 +144,70 @@ const handleLogout = async (phone_number) => {
     }
 };
 
-const handleRefreshTokens = (refreshToken) => {
-    return new Promise((resolve, reject) => {
-        jwt.verify(refreshToken, process.env.NODE_REFRESH_TOKEN_SECRET_KEY, async (error, data) => {
-            if (error) {
-                reject({
-                    code: ResponseCode.AUTHORIZATION_ERROR,
-                    message: "Forbidden. Invalid refresh token.",
-                });
-            } else {
-                try {
-                    const existedRefreshToken = await db.RefreshToken.findOne({
-                        where: {
-                            phone_number: data.phone_number,
-                        },
-                    });
+const handleRefreshTokens = async (refreshToken) => {
+    try {
+        const data = jwt.verify(refreshToken, process.env.NODE_REFRESH_TOKEN_SECRET_KEY);
+        const phoneNumber = data?.phone_number;
 
-                    if (existedRefreshToken && existedRefreshToken.token === refreshToken) {
-                        const newAccessToken = handleGenerateAccessToken(data);
-                        const newRefreshToken = await handleGenerateRefreshToken(data);
+        if (!phoneNumber) {
+            return {
+                code: ResponseCode.AUTHORIZATION_ERROR,
+                message: "Forbidden. Invalid refresh token.",
+            };
+        }
 
-                        resolve({
-                            code: ResponseCode.SUCCESS,
-                            message: "Refresh successfully.",
-                            accessToken: newAccessToken,
-                            refreshToken: newRefreshToken,
-                        });
-                    } else {
-                        reject({
-                            code: ResponseCode.AUTHORIZATION_ERROR,
-                            message: "Forbidden. Invalid refresh token.",
-                        });
-                    }
-                } catch (err1) {
-                    console.error(err1);
-                    reject({
-                        code: ResponseCode.INTERNAL_SERVER_ERROR,
-                        message: "An error occurred.",
-                    });
-                }
-            }
-        });
-    }).catch((err2) => {
-        console.log(err2);
-        return err2;
-    });
+        const [existedRefreshToken, currentUser] = await Promise.all([
+            db.RefreshToken.findOne({
+                where: {
+                    phone_number: phoneNumber,
+                },
+            }),
+            db.User.findOne({
+                where: {
+                    phone_number: phoneNumber,
+                },
+            }),
+        ]);
+
+        if (!existedRefreshToken || existedRefreshToken.token !== refreshToken) {
+            return {
+                code: ResponseCode.AUTHORIZATION_ERROR,
+                message: "Forbidden. Invalid refresh token.",
+            };
+        }
+
+        if (
+            !currentUser ||
+            !STAFF_ROLE_IDS.has(Number(currentUser.role_id)) ||
+            Number(currentUser.role_id) !== Number(data.role_id)
+        ) {
+            await db.RefreshToken.destroy({ where: { phone_number: phoneNumber } });
+            return {
+                code: ResponseCode.AUTHORIZATION_ERROR,
+                message: "Your account permissions changed. Please sign in again.",
+            };
+        }
+
+        return {
+            code: ResponseCode.SUCCESS,
+            message: "Refresh successfully.",
+            accessToken: handleGenerateAccessToken(currentUser),
+            refreshToken: await handleGenerateRefreshToken(currentUser),
+        };
+    } catch (error) {
+        if (error?.name === "JsonWebTokenError" || error?.name === "TokenExpiredError") {
+            return {
+                code: ResponseCode.AUTHORIZATION_ERROR,
+                message: "Forbidden. Invalid refresh token.",
+            };
+        }
+
+        console.error(error);
+        return {
+            code: ResponseCode.INTERNAL_SERVER_ERROR,
+            message: "An error occurred.",
+        };
+    }
 };
 
 const handleGenerateAccessToken = (user) => {
@@ -257,12 +277,14 @@ const handleGenerateRefreshToken = async (user) => {
 };
 
 const handleUpdateProfile = async (profile) => {
-    const t = await sequelize.transaction();
+    let t;
     try {
+        t = await sequelize.transaction();
         const user = await db.User.findOne({
             where: {
                 phone_number: profile.phone_number,
             },
+            transaction: t,
         });
 
         if (!user) {
@@ -281,6 +303,7 @@ const handleUpdateProfile = async (profile) => {
                         [Op.ne]: user.id,
                     },
                 },
+                transaction: t,
             });
 
             if (duplicatedEmail) {
@@ -301,7 +324,8 @@ const handleUpdateProfile = async (profile) => {
             address: convertedAddress,
         };
 
-        if (profile.password && profile.password.trim()) {
+        const passwordChanged = Boolean(profile.password && profile.password.trim());
+        if (passwordChanged) {
             updatedProfile.password = hashPassword(profile.password);
         }
 
@@ -311,6 +335,13 @@ const handleUpdateProfile = async (profile) => {
             },
             transaction: t,
         });
+
+        if (passwordChanged) {
+            await db.RefreshToken.destroy({
+                where: { phone_number: profile.phone_number },
+                transaction: t,
+            });
+        }
 
         if (profile.avatar) {
             const [, created] = await db.Image.findOrCreate({
@@ -351,7 +382,7 @@ const handleUpdateProfile = async (profile) => {
             message: "Update profile successfully.",
         };
     } catch (error) {
-        await t.rollback();
+        await rollbackTransaction(t);
         console.log(error);
         return {
             code: ResponseCode.INTERNAL_SERVER_ERROR,
@@ -361,6 +392,7 @@ const handleUpdateProfile = async (profile) => {
 };
 
 let handleChangePassword = async (username, password, newPassword) => {
+    let transaction;
     try {
         const normalizedUsername = typeof username === "string" ? username.trim() : username;
         const user = await db.User.findOne({
@@ -383,6 +415,7 @@ let handleChangePassword = async (username, password, newPassword) => {
             };
         }
 
+        transaction = await sequelize.transaction();
         await db.User.update(
             {
                 password: hashPassword(newPassword),
@@ -391,14 +424,22 @@ let handleChangePassword = async (username, password, newPassword) => {
                 where: {
                     id: user.id,
                 },
+                transaction,
             },
         );
+
+        await db.RefreshToken.destroy({
+            where: { phone_number: user.phone_number },
+            transaction,
+        });
+        await transaction.commit();
 
         return {
             code: ResponseCode.SUCCESS,
             message: "Password has been changed.",
         };
     } catch (error) {
+        await rollbackTransaction(transaction);
         console.log(error);
         return {
             code: ResponseCode.INTERNAL_SERVER_ERROR,

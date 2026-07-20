@@ -1,8 +1,194 @@
 import db from "../models";
 import { OrderStateCode, ResponseCode } from "../constant";
-import sequelize from "../config/database";
 import _ from "lodash";
+import { randomUUID } from "crypto";
 const { Op } = require("sequelize");
+import { rollbackTransaction } from "../utils/transaction";
+const sequelize = db.sequelize;
+
+const CHECKOUT_VOUCHERS = {
+    NEW10: { percent: 10, minSubtotal: 0 },
+    YAY15: { percent: 15, minSubtotal: 500000 },
+    WOW20: { percent: 20, minSubtotal: 1000000 },
+};
+
+const ORDER_TRANSITIONS = new Map([
+    [OrderStateCode.PROCESSED, new Set([OrderStateCode.CONFIRMED, OrderStateCode.CANCELED])],
+    [OrderStateCode.CONFIRMED, new Set([OrderStateCode.ON_SHIPPED, OrderStateCode.CANCELED])],
+    [OrderStateCode.ON_SHIPPED, new Set([OrderStateCode.FINISHED])],
+    [OrderStateCode.FINISHED, new Set()],
+    [OrderStateCode.CANCELED, new Set()],
+]);
+
+const canTransitionOrder = (currentStatusId, nextStatusId) =>
+    ORDER_TRANSITIONS.get(Number(currentStatusId))?.has(Number(nextStatusId)) === true;
+
+class CheckoutValidationError extends Error {
+    constructor(message, code = ResponseCode.VALIDATION_ERROR) {
+        super(message);
+        this.name = "CheckoutValidationError";
+        this.responseCode = code;
+    }
+}
+
+const normalizeCheckoutItems = (items) => {
+    if (!Array.isArray(items) || items.length === 0 || items.length > 100) {
+        throw new CheckoutValidationError("The order must contain between 1 and 100 products.");
+    }
+
+    const quantitiesByProductId = new Map();
+
+    for (const item of items) {
+        const productId = Number(item?.id ?? item?.product_id ?? item?.productId);
+        const quantity = Number(item?.quantity);
+
+        if (!Number.isSafeInteger(productId) || productId <= 0) {
+            throw new CheckoutValidationError("Invalid product identifier.");
+        }
+
+        if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+            throw new CheckoutValidationError("Product quantity must be a positive integer.");
+        }
+
+        const accumulatedQuantity = (quantitiesByProductId.get(productId) || 0) + quantity;
+        if (!Number.isSafeInteger(accumulatedQuantity) || accumulatedQuantity > 1000) {
+            throw new CheckoutValidationError("Product quantity exceeds the allowed limit.");
+        }
+
+        quantitiesByProductId.set(productId, accumulatedQuantity);
+    }
+
+    return [...quantitiesByProductId.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+};
+
+const normalizeShippingAddress = (shippingAddress) => {
+    const normalized = {
+        receiver_name: String(shippingAddress?.receiver_name || "").trim(),
+        receiver_phone: String(shippingAddress?.receiver_phone || "").trim(),
+        receiver_address: String(shippingAddress?.receiver_address || "").trim(),
+    };
+
+    if (!normalized.receiver_name || !normalized.receiver_phone || !normalized.receiver_address) {
+        throw new CheckoutValidationError("Shipping address information is incomplete.");
+    }
+
+    if (
+        normalized.receiver_name.length > 255 ||
+        normalized.receiver_phone.length > 30 ||
+        normalized.receiver_address.length > 2000
+    ) {
+        throw new CheckoutValidationError("Shipping address information is too long.");
+    }
+
+    return normalized;
+};
+
+const calculateCheckoutTotals = (productsById, normalizedItems, paymentDetails = {}) => {
+    const subtotal = normalizedItems.reduce((sum, item) => {
+        const product = productsById.get(item.productId);
+        const price = Number(product?.price);
+
+        if (!Number.isFinite(price) || price < 0) {
+            throw new CheckoutValidationError(`Invalid price for product ${item.productId}.`);
+        }
+
+        return sum + price * item.quantity;
+    }, 0);
+
+    if (!Number.isSafeInteger(subtotal) || subtotal < 0) {
+        throw new CheckoutValidationError("The calculated order subtotal is invalid.");
+    }
+
+    const voucherCode = String(paymentDetails?.voucher_code || "")
+        .trim()
+        .toUpperCase();
+    const voucher = voucherCode ? CHECKOUT_VOUCHERS[voucherCode] : null;
+
+    if (voucherCode && !voucher) {
+        throw new CheckoutValidationError("Invalid voucher code.");
+    }
+
+    if (voucher && subtotal < voucher.minSubtotal) {
+        throw new CheckoutValidationError("The order does not meet the voucher minimum subtotal.");
+    }
+
+    const discount = voucher ? Math.floor((subtotal * voucher.percent) / 100) : 0;
+    const shippingFee = 0;
+
+    return {
+        subtotal,
+        discount,
+        shipping_fee: shippingFee,
+        total: subtotal - discount + shippingFee,
+    };
+};
+
+const restoreOrderInventory = async (order, transaction) => {
+    if (!order.inventory_reserved) {
+        return false;
+    }
+
+    const orderDetails = await db.OrderDetail.findAll({
+        attributes: ["product_id", "quantity"],
+        where: { order_uuid: order.order_uuid },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+    });
+    const quantitiesByProductId = new Map();
+
+    for (const detail of orderDetails) {
+        const productId = Number(detail.product_id);
+        const quantity = Number(detail.quantity);
+
+        if (!Number.isSafeInteger(productId) || productId <= 0 || !Number.isSafeInteger(quantity) || quantity <= 0) {
+            continue;
+        }
+
+        quantitiesByProductId.set(productId, (quantitiesByProductId.get(productId) || 0) + quantity);
+    }
+
+    const productIds = [...quantitiesByProductId.keys()].sort((left, right) => left - right);
+    const products = productIds.length
+        ? await db.Product.findAll({
+              where: { id: productIds },
+              order: [["id", "ASC"]],
+              transaction,
+              lock: transaction.LOCK.UPDATE,
+          })
+        : [];
+
+    for (const product of products) {
+        const quantityToRestore = quantitiesByProductId.get(Number(product.id));
+
+        await db.Product.update(
+            {
+                quantity: Number(product.quantity || 0) + quantityToRestore,
+                sold: Math.max(Number(product.sold || 0) - quantityToRestore, 0),
+            },
+            {
+                where: { id: product.id },
+                transaction,
+            },
+        );
+    }
+
+    const [updatedRows] = await db.Order.update(
+        { inventory_reserved: false },
+        {
+            where: {
+                id: order.id,
+                inventory_reserved: true,
+            },
+            transaction,
+        },
+    );
+
+    if (updatedRows !== 1) {
+        throw new Error("Order inventory reservation changed while restoring stock.");
+    }
+
+    return true;
+};
 
 const handleGetPaymentMethods = async () => {
     try {
@@ -81,7 +267,6 @@ const handleCountOrders = async () => {
 };
 
 const handleGetAllOrders = async (status_id, page, keyword) => {
-    const t = sequelize.transaction();
     const currentPage = page && !_.isNaN(page) ? page : 1;
     try {
         const normalizedKeyword = `${keyword || ""}`.trim();
@@ -318,7 +503,6 @@ const handleGetOneOrderByUuid = async (order_uuid) => {
 };
 
 const handleGetOrdersByUuids = async (encodedUuids) => {
-    const t = sequelize.transaction();
     try {
         const decodedUuids = decodeURIComponent(encodedUuids);
 
@@ -399,7 +583,6 @@ const handleGetOrdersByUuids = async (encodedUuids) => {
 };
 
 const handleGetOrdersByUserPhoneNumber = async (phone_number) => {
-    const t = sequelize.transaction();
     try {
         const user = await db.User.findOne({
             where: {
@@ -478,293 +661,182 @@ const handleGetOrdersByUserPhoneNumber = async (phone_number) => {
 };
 
 const handleCreateOrder = async (order) => {
-    const t = await sequelize.transaction();
+    let transaction;
 
     try {
-        const thisMoment = new Date();
-        const datetimeUuid = thisMoment.valueOf();
+        const {
+            customerPhoneNumber,
+            items,
+            note,
+            paymentDetails,
+            paymentMethod,
+            shippingAddress,
+            requireRegisteredCustomer,
+        } = order;
+        const normalizedPhoneNumber = String(customerPhoneNumber || "").trim();
+        const normalizedItems = normalizeCheckoutItems(items);
+        const paymentMethodId = Number(paymentMethod?.id);
+        const normalizedShippingAddress = normalizeShippingAddress(shippingAddress);
 
-        const { customerPhoneNumber, items, note, paymentDetails, paymentMethod, shippingAddress } = order;
+        if (!normalizedPhoneNumber || normalizedPhoneNumber.length > 30) {
+            throw new CheckoutValidationError("Invalid customer phone number.");
+        }
 
-        const [shipping_adddress, created] = await db.ShippingAddress.findOrCreate({
-            where: {
-                ...shippingAddress,
-            },
-            defaults: shippingAddress,
-            transaction: t,
+        if (!Number.isSafeInteger(paymentMethodId) || paymentMethodId <= 0) {
+            throw new CheckoutValidationError("Invalid payment method.");
+        }
+
+        transaction = await sequelize.transaction();
+
+        if (requireRegisteredCustomer) {
+            const customer = await db.User.findOne({
+                attributes: ["id"],
+                where: {
+                    phone_number: normalizedPhoneNumber,
+                    role_id: 3,
+                },
+                transaction,
+            });
+
+            if (!customer) {
+                throw new CheckoutValidationError(
+                    "The authenticated customer account is no longer available.",
+                    ResponseCode.AUTHORIZATION_ERROR,
+                );
+            }
+        }
+
+        const validPaymentMethod = await db.PaymentMethod.findOne({
+            attributes: ["id"],
+            where: { id: paymentMethodId },
+            transaction,
         });
 
-        const orderDataToInsert = {
-            order_uuid: datetimeUuid,
-            customer_phone_number: customerPhoneNumber,
-            shipping_address_id: shipping_adddress.id,
-            payment_method_id: paymentMethod.id,
-            ...paymentDetails,
-            status_id: 1,
-            note,
-        };
+        if (!validPaymentMethod) {
+            throw new CheckoutValidationError("Payment method not found.", ResponseCode.FILE_NOT_FOUND);
+        }
 
-        const orderItemsToInsert = items.map(({ id, name, slug, price, quantity, feature_image_url }) => ({
-            order_uuid: datetimeUuid,
-            product_id: id,
-            slug,
-            name,
-            price,
-            quantity,
-            feature_image_url,
-        }));
+        const productIds = normalizedItems.map((item) => item.productId);
+        const products = await db.Product.findAll({
+            where: {
+                id: productIds,
+            },
+            order: [["id", "ASC"]],
+            transaction,
+            lock: transaction.LOCK.UPDATE,
+        });
 
-        const historyDataToInsert = {
-            order_uuid: datetimeUuid,
-            employee_id: null,
-            status_id: 1,
-            description: `Khách ${customerPhoneNumber} đặt hàng`,
-        };
+        const productsById = new Map(products.map((product) => [Number(product.id), product]));
+        if (productsById.size !== productIds.length) {
+            throw new CheckoutValidationError("One or more products no longer exist.", ResponseCode.FILE_NOT_FOUND);
+        }
 
-        await Promise.all([
-            db.Order.create(orderDataToInsert, { transaction: t }),
-            db.OrderDetail.bulkCreate(orderItemsToInsert, { transaction: t }),
-            db.HistoryOrderUpdate.create(historyDataToInsert, { transaction: t }),
-        ]);
+        for (const item of normalizedItems) {
+            const product = productsById.get(item.productId);
+            const availableQuantity = Number(product.quantity);
 
-        await t.commit();
+            if (!Number.isSafeInteger(availableQuantity) || availableQuantity < item.quantity) {
+                throw new CheckoutValidationError(`Product ${product.name} does not have enough stock.`);
+            }
+        }
+
+        const calculatedPaymentDetails = calculateCheckoutTotals(productsById, normalizedItems, paymentDetails);
+        const orderUuid = randomUUID();
+        // Shipping details are an immutable order snapshot. Never reuse one
+        // address row between orders because an admin edit would mutate history.
+        const shippingAddressRecord = await db.ShippingAddress.create(normalizedShippingAddress, { transaction });
+
+        await db.Order.create(
+            {
+                order_uuid: orderUuid,
+                customer_phone_number: normalizedPhoneNumber,
+                shipping_address_id: shippingAddressRecord.id,
+                payment_method_id: paymentMethodId,
+                ...calculatedPaymentDetails,
+                status_id: 1,
+                inventory_reserved: true,
+                note: typeof note === "string" ? note.slice(0, 5000) : "",
+            },
+            { transaction },
+        );
+
+        await db.OrderDetail.bulkCreate(
+            normalizedItems.map(({ productId, quantity }) => {
+                const product = productsById.get(productId);
+                return {
+                    order_uuid: orderUuid,
+                    product_id: product.id,
+                    slug: product.slug,
+                    name: product.name,
+                    price: Number(product.price),
+                    quantity,
+                    feature_image_url: product.feature_image_url,
+                };
+            }),
+            { transaction },
+        );
+
+        await db.HistoryOrderUpdate.create(
+            {
+                order_uuid: orderUuid,
+                employee_id: null,
+                status_id: 1,
+                description: `Customer ${normalizedPhoneNumber} placed the order`,
+            },
+            { transaction },
+        );
+
+        for (const item of normalizedItems) {
+            const product = productsById.get(item.productId);
+            const [updatedRows] = await db.Product.update(
+                {
+                    quantity: Number(product.quantity) - item.quantity,
+                    sold: Number(product.sold || 0) + item.quantity,
+                },
+                {
+                    where: {
+                        id: item.productId,
+                        quantity: {
+                            [Op.gte]: item.quantity,
+                        },
+                    },
+                    transaction,
+                },
+            );
+
+            if (updatedRows !== 1) {
+                throw new CheckoutValidationError(`Product ${product.name} does not have enough stock.`);
+            }
+        }
+
+        await transaction.commit();
 
         return {
             code: ResponseCode.SUCCESS,
             message: "Create order successfully",
-            result: datetimeUuid,
+            result: orderUuid,
         };
     } catch (error) {
-        await t.rollback();
-
+        await rollbackTransaction(transaction);
         console.log(error);
 
         return {
-            code: ResponseCode.DATABASE_ERROR,
-            message: "An error occurred during the transaction.",
+            code: error instanceof CheckoutValidationError ? error.responseCode : ResponseCode.DATABASE_ERROR,
+            message:
+                error instanceof CheckoutValidationError
+                    ? error.message
+                    : "An error occurred during the transaction.",
         };
     }
 };
 
-let handleConfirmOrder = (uuid) => {
-    return new Promise(async (resolve, reject) => {
-        let data = {};
-        try {
-            let targetOrder = await db.Order.findOne({
-                where: { orderUuid: uuid },
-            });
-            if (targetOrder) {
-                const thisMoment = new Date();
-                const stateArray = JSON.parse(targetOrder.state);
-                if (stateArray[stateArray.length - 1].code < 1) {
-                    const newStateArray = [
-                        ...stateArray,
-                        {
-                            code: 1,
-                            description: "Đã xác nhận",
-                            time: thisMoment.toISOString(),
-                        },
-                    ];
-                    await db.Order.update(
-                        {
-                            state: JSON.stringify(newStateArray),
-                        },
-                        {
-                            where: { orderUuid: uuid },
-                        },
-                    );
-                    data.code = 0;
-                    data.message = "this order has been confirmed";
-                }
-            } else {
-                data.code = 2;
-                data.message = "invalid order";
-            }
-            resolve(data);
-        } catch (error) {
-            reject(error);
-        }
-    });
-};
+let handleConfirmOrder;
+let handleDeliveryOrder;
+let handleFinishedOrder;
+let handleCancelOrder;
+let handleDeleteOrder;
 
-let handleDeliveryOrder = (uuid) => {
-    return new Promise(async (resolve, reject) => {
-        let data = {};
-        try {
-            let targetOrder = await db.Order.findOne({
-                where: { orderUuid: uuid },
-            });
-            if (targetOrder) {
-                const thisMoment = new Date();
-                const stateArray = JSON.parse(targetOrder.state);
-                if (stateArray[stateArray.length - 1].code < 2) {
-                    const newStateArray = [
-                        ...stateArray,
-                        {
-                            code: 2,
-                            description: "Đang giao hàng",
-                            time: thisMoment.toISOString(),
-                        },
-                    ];
-                    await db.Order.update(
-                        {
-                            state: JSON.stringify(newStateArray),
-                        },
-                        {
-                            where: { orderUuid: uuid },
-                        },
-                    );
-                    data.code = 0;
-                    data.message = "this order being delivery";
-                }
-            } else {
-                data.code = 2;
-                data.message = "invalid order";
-            }
-            resolve(data);
-        } catch (error) {
-            reject(error);
-        }
-    });
-};
-
-let handleFinishedOrder = (uuid) => {
-    return new Promise(async (resolve, reject) => {
-        let data = {};
-        try {
-            let targetOrder = await db.Order.findOne({
-                where: { orderUuid: uuid },
-            });
-            if (targetOrder) {
-                const thisMoment = new Date();
-                const stateArray = JSON.parse(targetOrder.state);
-                if (stateArray[stateArray.length - 1].code === 2) {
-                    const newStateArray = [
-                        ...stateArray,
-                        {
-                            code: 3,
-                            description: "Giao hàng thành công",
-                            time: thisMoment.toISOString(),
-                        },
-                    ];
-                    await db.Order.update(
-                        {
-                            state: JSON.stringify(newStateArray),
-                        },
-                        {
-                            where: { orderUuid: uuid },
-                        },
-                    );
-                    data.code = 0;
-                    data.message = "delivery success";
-                }
-            } else {
-                data.code = 2;
-                data.message = "invalid order";
-            }
-            resolve(data);
-        } catch (error) {
-            reject(error);
-        }
-    });
-};
-
-let handleCancelOrder = (uuid) => {
-    return new Promise(async (resolve, reject) => {
-        let data = {};
-        try {
-            let targetOrder = await db.Order.findOne({
-                where: { orderUuid: uuid },
-            });
-            if (targetOrder) {
-                const thisMoment = new Date();
-                const stateArray = JSON.parse(targetOrder.state);
-                if (stateArray[stateArray.length - 1].code !== 4) {
-                    const newStateArray = [
-                        ...stateArray,
-                        {
-                            code: 4,
-                            description: "Đã hủy",
-                            time: thisMoment.toISOString(),
-                        },
-                    ];
-                    await db.Order.update(
-                        {
-                            state: JSON.stringify(newStateArray),
-                        },
-                        {
-                            where: { orderUuid: uuid },
-                        },
-                    );
-                    data.code = 0;
-                    data.message = "this order has been cancelled";
-                }
-            } else {
-                data.code = 2;
-                data.message = "invalid order";
-            }
-            resolve(data);
-        } catch (error) {
-            reject(error);
-        }
-    });
-};
-
-let handleDeleteOrder = async (orderRef) => {
-    const orderId = typeof orderRef === "object" ? orderRef.id : orderRef;
-    const orderUuid = typeof orderRef === "object" ? orderRef.order_uuid || orderRef.uuid : null;
-    const where = orderId ? { id: orderId } : { order_uuid: orderUuid };
-
-    if (!where.id && !where.order_uuid) {
-        return {
-            code: ResponseCode.MISSING_PARAMETER,
-            message: "Missing order identifier.",
-        };
-    }
-
-    const t = await sequelize.transaction();
-
-    try {
-        const targetOrder = await db.Order.findOne({
-            where,
-            transaction: t,
-        });
-
-        if (!targetOrder) {
-            await t.rollback();
-            return {
-                code: ResponseCode.FILE_NOT_FOUND,
-                message: "Order not found.",
-            };
-        }
-
-        await db.OrderDetail.destroy({
-            where: { order_uuid: targetOrder.order_uuid },
-            transaction: t,
-        });
-
-        await db.HistoryOrderUpdate.destroy({
-            where: { order_uuid: targetOrder.order_uuid },
-            transaction: t,
-        });
-
-        await db.Order.destroy({
-            where: { id: targetOrder.id },
-            transaction: t,
-        });
-
-        await t.commit();
-        return {
-            code: ResponseCode.SUCCESS,
-            message: "Delete order successfully.",
-        };
-    } catch (error) {
-        await t.rollback();
-        throw error;
-    }
-};
-
-const getEmployeeIdByPhone = async (phoneNumber) => {
+const getEmployeeIdByPhone = async (phoneNumber, transaction) => {
     if (!phoneNumber) return null;
 
     const employee = await db.User.findOne({
@@ -772,21 +844,24 @@ const getEmployeeIdByPhone = async (phoneNumber) => {
         where: {
             phone_number: phoneNumber,
         },
+        transaction,
     });
 
     return employee?.id || null;
 };
 
 const handleUpdateOrder = async (data, employeePhoneNumber) => {
-    const t = await sequelize.transaction();
+    let t;
 
     try {
+        t = await sequelize.transaction();
         const { order_uuid, status_id, note, payment_method_id, shipping_address } = data;
         const order = await db.Order.findOne({
             where: {
                 order_uuid,
             },
             transaction: t,
+            lock: t.LOCK.UPDATE,
         });
 
         if (!order) {
@@ -798,9 +873,27 @@ const handleUpdateOrder = async (data, employeePhoneNumber) => {
         }
 
         const orderUpdates = {};
-        const nextStatusId = status_id ? Number(status_id) : null;
+        const hasStatusUpdate = status_id !== undefined && status_id !== null && status_id !== "";
+        const nextStatusId = hasStatusUpdate ? Number(status_id) : null;
+        const currentStatusId = Number(order.status_id);
 
-        if (nextStatusId && nextStatusId !== Number(order.status_id)) {
+        if (hasStatusUpdate && (!Number.isSafeInteger(nextStatusId) || !ORDER_TRANSITIONS.has(nextStatusId))) {
+            await t.rollback();
+            return {
+                code: ResponseCode.VALIDATION_ERROR,
+                message: "Invalid order status.",
+            };
+        }
+
+        if (nextStatusId !== null && nextStatusId !== currentStatusId) {
+            if (!canTransitionOrder(currentStatusId, nextStatusId)) {
+                await t.rollback();
+                return {
+                    code: ResponseCode.VALIDATION_ERROR,
+                    message: `Order cannot transition from status ${currentStatusId} to ${nextStatusId}.`,
+                };
+            }
+
             const status = await db.Status.findOne({
                 where: { id: nextStatusId },
                 transaction: t,
@@ -814,11 +907,21 @@ const handleUpdateOrder = async (data, employeePhoneNumber) => {
                 };
             }
 
+            if (nextStatusId === OrderStateCode.CANCELED) {
+                await restoreOrderInventory(order, t);
+            }
+
             orderUpdates.status_id = nextStatusId;
+            if (nextStatusId === OrderStateCode.FINISHED) {
+                // A finished order consumes the reservation permanently. Stock
+                // was already deducted at checkout, so clear the flag without
+                // restoring inventory.
+                orderUpdates.inventory_reserved = false;
+            }
             await db.HistoryOrderUpdate.create(
                 {
                     order_uuid,
-                    employee_id: await getEmployeeIdByPhone(employeePhoneNumber),
+                    employee_id: await getEmployeeIdByPhone(employeePhoneNumber, t),
                     status_id: nextStatusId,
                     description: `Update order status to ${status.code}`,
                 },
@@ -834,20 +937,12 @@ const handleUpdateOrder = async (data, employeePhoneNumber) => {
             orderUpdates.payment_method_id = Number(payment_method_id);
         }
 
+        const previousShippingAddressId = order.shipping_address_id;
         if (shipping_address) {
-            await db.ShippingAddress.update(
-                {
-                    receiver_name: shipping_address.receiver_name,
-                    receiver_phone: shipping_address.receiver_phone,
-                    receiver_address: shipping_address.receiver_address,
-                },
-                {
-                    where: {
-                        id: order.shipping_address_id,
-                    },
-                    transaction: t,
-                },
-            );
+            const shippingAddressSnapshot = await db.ShippingAddress.create(normalizeShippingAddress(shipping_address), {
+                transaction: t,
+            });
+            orderUpdates.shipping_address_id = shippingAddressSnapshot.id;
         }
 
         if (Object.keys(orderUpdates).length > 0) {
@@ -859,6 +954,20 @@ const handleUpdateOrder = async (data, employeePhoneNumber) => {
             });
         }
 
+        if (shipping_address && previousShippingAddressId) {
+            const remainingReferences = await db.Order.count({
+                where: { shipping_address_id: previousShippingAddressId },
+                transaction: t,
+            });
+
+            if (remainingReferences === 0) {
+                await db.ShippingAddress.destroy({
+                    where: { id: previousShippingAddressId },
+                    transaction: t,
+                });
+            }
+        }
+
         await t.commit();
 
         return {
@@ -866,7 +975,7 @@ const handleUpdateOrder = async (data, employeePhoneNumber) => {
             message: "Update order successfully",
         };
     } catch (error) {
-        await t.rollback();
+        await rollbackTransaction(t);
         console.log(error);
 
         return {
@@ -915,72 +1024,74 @@ const handleCustomerCancelOrder = async (orderUuid, customerPhoneNumber) => {
         };
     }
 
-    const t = await sequelize.transaction();
-
     try {
-        const order = await db.Order.findOne({
-            where: {
-                order_uuid: orderUuid,
-                customer_phone_number: customerPhoneNumber,
-            },
-            transaction: t,
-        });
-
-        if (!order) {
-            await t.rollback();
-            return {
-                code: ResponseCode.FILE_NOT_FOUND,
-                message: "Order not found.",
-            };
-        }
-
-        const currentStatusId = Number(order.status_id);
-        if (currentStatusId === 5) {
-            await t.rollback();
-            return {
-                code: ResponseCode.VALIDATION_ERROR,
-                message: "Order has already been canceled.",
-            };
-        }
-
-        if (currentStatusId >= 3) {
-            await t.rollback();
-            return {
-                code: ResponseCode.VALIDATION_ERROR,
-                message: "Only processed or confirmed orders can be canceled by customer.",
-            };
-        }
-
-        await db.Order.update(
-            {
-                status_id: 5,
-            },
-            {
+        return await db.sequelize.transaction(async (transaction) => {
+            const order = await db.Order.findOne({
                 where: {
-                    id: order.id,
+                    order_uuid: orderUuid,
+                    customer_phone_number: customerPhoneNumber,
                 },
-                transaction: t,
-            },
-        );
+                transaction,
+                lock: transaction.LOCK.UPDATE,
+            });
 
-        await db.HistoryOrderUpdate.create(
-            {
-                order_uuid: orderUuid,
-                employee_id: null,
-                status_id: 5,
-                description: `Customer ${customerPhoneNumber} canceled order`,
-            },
-            { transaction: t },
-        );
+            if (!order) {
+                return {
+                    code: ResponseCode.FILE_NOT_FOUND,
+                    message: "Order not found.",
+                };
+            }
 
-        await t.commit();
+            const currentStatusId = Number(order.status_id);
+            if (currentStatusId === OrderStateCode.CANCELED) {
+                return {
+                    code: ResponseCode.VALIDATION_ERROR,
+                    message: "Order has already been canceled.",
+                };
+            }
 
-        return {
-            code: ResponseCode.SUCCESS,
-            message: "Cancel order successfully.",
-        };
+            if (!canTransitionOrder(currentStatusId, OrderStateCode.CANCELED)) {
+                return {
+                    code: ResponseCode.VALIDATION_ERROR,
+                    message: "Only processed or confirmed orders can be canceled.",
+                };
+            }
+
+            const [updatedRows] = await db.Order.update(
+                {
+                    status_id: OrderStateCode.CANCELED,
+                },
+                {
+                    where: {
+                        id: order.id,
+                        status_id: currentStatusId,
+                    },
+                    transaction,
+                },
+            );
+
+            if (updatedRows !== 1) {
+                throw new Error("Order status changed while canceling.");
+            }
+
+            await restoreOrderInventory(order, transaction);
+
+            await db.HistoryOrderUpdate.create(
+                {
+                    order_uuid: orderUuid,
+                    employee_id: null,
+                    status_id: OrderStateCode.CANCELED,
+                    description: `Customer ${customerPhoneNumber} canceled order`,
+                },
+                { transaction },
+            );
+
+            return {
+                code: ResponseCode.SUCCESS,
+                message: "Cancel order successfully.",
+            };
+        });
     } catch (error) {
-        await t.rollback();
         console.log(error);
 
         return {
@@ -991,21 +1102,22 @@ const handleCustomerCancelOrder = async (orderUuid, customerPhoneNumber) => {
 };
 
 handleDeleteOrder = async ({ id, uuid, order_uuid }) => {
-    const t = await sequelize.transaction();
     const where = order_uuid || uuid ? { order_uuid: order_uuid || uuid } : { id };
 
     if (!where.id && !where.order_uuid) {
-        await t.rollback();
         return {
             code: ResponseCode.MISSING_PARAMETER,
             message: "Missing order identifier.",
         };
     }
 
+    let t;
     try {
+        t = await sequelize.transaction();
         const targetOrder = await db.Order.findOne({
             where,
             transaction: t,
+            lock: t.LOCK.UPDATE,
         });
 
         if (!targetOrder) {
@@ -1016,21 +1128,43 @@ handleDeleteOrder = async ({ id, uuid, order_uuid }) => {
             };
         }
 
-        await Promise.all([
-            db.HistoryOrderUpdate.destroy({
-                where: { order_uuid: targetOrder.order_uuid },
-                transaction: t,
-            }),
-            db.OrderDetail.destroy({
-                where: { order_uuid: targetOrder.order_uuid },
-                transaction: t,
-            }),
-        ]);
+        if (Number(targetOrder.status_id) !== OrderStateCode.CANCELED) {
+            await t.rollback();
+            return {
+                code: ResponseCode.VALIDATION_ERROR,
+                message: "Only canceled orders can be deleted.",
+            };
+        }
+
+        await restoreOrderInventory(targetOrder, t);
+
+        await db.HistoryOrderUpdate.destroy({
+            where: { order_uuid: targetOrder.order_uuid },
+            transaction: t,
+        });
+        await db.OrderDetail.destroy({
+            where: { order_uuid: targetOrder.order_uuid },
+            transaction: t,
+        });
 
         await db.Order.destroy({
             where: { id: targetOrder.id },
             transaction: t,
         });
+
+        if (targetOrder.shipping_address_id) {
+            const remainingReferences = await db.Order.count({
+                where: { shipping_address_id: targetOrder.shipping_address_id },
+                transaction: t,
+            });
+
+            if (remainingReferences === 0) {
+                await db.ShippingAddress.destroy({
+                    where: { id: targetOrder.shipping_address_id },
+                    transaction: t,
+                });
+            }
+        }
 
         await t.commit();
 
@@ -1039,7 +1173,7 @@ handleDeleteOrder = async ({ id, uuid, order_uuid }) => {
             message: "Delete order successfully.",
         };
     } catch (error) {
-        await t.rollback();
+        await rollbackTransaction(t);
         console.log(error);
 
         return {

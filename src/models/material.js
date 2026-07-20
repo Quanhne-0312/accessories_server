@@ -10,8 +10,16 @@ module.exports = (sequelize, DataTypes) => {
     }
     Material.init(
         {
-            slug: DataTypes.STRING,
-            name: DataTypes.STRING,
+            slug: {
+                type: DataTypes.STRING,
+                allowNull: false,
+                unique: true,
+            },
+            name: {
+                type: DataTypes.STRING,
+                allowNull: false,
+                unique: true,
+            },
         },
         {
             sequelize,

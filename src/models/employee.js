@@ -9,9 +9,6 @@ module.exports = (sequelize, DataTypes) => {
                 foreignKey: "user_id",
                 onDelete: "CASCADE",
             });
-            Employee.hasMany(models.Order, {
-                foreignKey: "employee_id",
-            });
         }
     }
 

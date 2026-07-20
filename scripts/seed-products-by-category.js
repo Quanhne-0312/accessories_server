@@ -4,7 +4,7 @@ const db = require("../src/models");
 
 db.sequelize.options.logging = false;
 
-const TARGET_PER_CATEGORY = 20;
+const TARGET_PER_CATEGORY = 10;
 
 const CATEGORY_CONFIG = [
     { slug: "vong-tay", name: "Vòng tay", label: "VONG TAY" },
@@ -288,7 +288,7 @@ const syncImages = async (productId, product, transaction) => {
         transaction,
     });
 
-    const images = [1, 2, 3, 4].map((detailIndex) => {
+    const images = [0, 1, 2, 3, 4].map((detailIndex) => {
         const imageUrl = createSvgDataUri({
             categorySlug: product.category.slug,
             productName: product.name,
@@ -313,16 +313,24 @@ const syncProducts = async () => {
     try {
         await syncLookupTable(db.Category, CATEGORY_CONFIG.map(({ slug, name }) => ({ slug, name })), transaction);
         await syncLookupTable(db.Material, MATERIALS, transaction);
+        await syncLookupTable(
+            db.Color,
+            COLORS.map((name) => ({ name, slug: slugify(name) })),
+            transaction,
+        );
 
-        const [categories, materials, existingProducts, referencedRows] = await Promise.all([
-            db.Category.findAll({ raw: true, transaction }),
-            db.Material.findAll({ raw: true, transaction }),
-            db.Product.findAll({ order: [["id", "ASC"]], transaction }),
-            db.sequelize.query("select distinct product_id from order_details where product_id is not null", {
+        // A transaction uses one PostgreSQL connection, so run its queries
+        // sequentially instead of issuing concurrent client.query() calls.
+        const categories = await db.Category.findAll({ raw: true, transaction });
+        const materials = await db.Material.findAll({ raw: true, transaction });
+        const existingProducts = await db.Product.findAll({ order: [["id", "ASC"]], transaction });
+        const referencedRows = await db.sequelize.query(
+            "select distinct product_id from order_details where product_id is not null",
+            {
                 type: db.sequelize.QueryTypes.SELECT,
                 transaction,
-            }),
-        ]);
+            },
+        );
 
         const activeCategories = categories.filter((category) =>
             CATEGORY_CONFIG.some((item) => item.slug === category.slug),
@@ -349,8 +357,8 @@ const syncProducts = async () => {
             const payload = {
                 name: product.name,
                 slug: product.slug,
-                category: String(product.category.id),
-                material: String(product.material.id),
+                category: product.category.name,
+                material: product.material.name,
                 brand: product.brand,
                 color: product.color,
                 price: product.price,
@@ -391,8 +399,8 @@ const syncProducts = async () => {
                     {
                         name: `${replacement.name} phiên bản đặc biệt`,
                         slug: `${replacement.slug}-don-hang-${product.id}`,
-                        category: String(replacement.category.id),
-                        material: String(replacement.material.id),
+                        category: replacement.category.name,
+                        material: replacement.material.name,
                         brand: replacement.brand,
                         color: replacement.color,
                         price: replacement.price,

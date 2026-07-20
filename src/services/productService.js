@@ -1,9 +1,10 @@
 import _ from "lodash";
-import sequelize from "../config/database";
 import { ResponseCode } from "../constant";
 import db from "../models";
 import imageService from "./imageService";
 const { Op } = require("sequelize");
+import { rollbackTransaction } from "../utils/transaction";
+const sequelize = db.sequelize;
 
 const normalizeCatalogValue = (value) => slugifyFilterOption(String(value || "").trim());
 
@@ -76,68 +77,10 @@ const handleGetMaterials = async () => {
     }
 };
 
-const ensureColorsTable = async () => {
-    await db.sequelize.query(`
-        create table if not exists colors (
-            id serial primary key,
-            slug varchar(255) unique,
-            name varchar(255) unique,
-            "createdAt" timestamp with time zone not null default now(),
-            "updatedAt" timestamp with time zone not null default now()
-        )
-    `);
-
-    await db.sequelize.query(`
-        insert into colors (slug, name, "createdAt", "updatedAt")
-        select distinct
-            lower(regexp_replace(unaccent(color), '[^a-zA-Z0-9]+', '-', 'g')) as slug,
-            color as name,
-            now(),
-            now()
-        from products
-        where color is not null and trim(color) <> ''
-        on conflict do nothing
-    `).catch(async () => {
-        const products = await db.Product.findAll({
-            raw: true,
-            attributes: ["color"],
-        });
-
-        const colors = [
-            ...new Set(products.map((product) => product.color).filter(Boolean)),
-        ].map((color) => ({
-            slug: slugifyFilterOption(color),
-            name: color,
-        }));
-
-        for (const color of colors) {
-            await db.sequelize.query(
-                `
-                insert into colors (slug, name, "createdAt", "updatedAt")
-                values (:slug, :name, now(), now())
-                on conflict do nothing
-                `,
-                {
-                    replacements: color,
-                },
-            );
-        }
-    });
-};
-
 const handleGetColors = async () => {
     try {
-        await ensureColorsTable();
-
         const [colors, products] = await Promise.all([
-            db.sequelize.query(
-                `
-                select id, slug, name
-                from colors
-                order by id asc
-                `,
-                { type: db.sequelize.QueryTypes.SELECT },
-            ),
+            db.Color.findAll({ raw: true, order: [["id", "ASC"]] }),
             db.Product.findAll({ raw: true, attributes: ["color"] }),
         ]);
 
@@ -158,12 +101,14 @@ const handleGetColors = async () => {
 const getCatalogModel = (type) => {
     if (type === "category") return db.Category;
     if (type === "material") return db.Material;
+    if (type === "color") return db.Color;
     return null;
 };
 
 const getCatalogTableName = (type) => {
     if (type === "category") return "categories";
     if (type === "material") return "materials";
+    if (type === "color") return "colors";
     return null;
 };
 
@@ -180,43 +125,12 @@ const ensureCatalogSequence = async (type) => {
     `);
 };
 
-const getCatalogUsageCount = async (type, option) => {
-    if (type === "category") {
-        return db.Product.count({
-            where: {
-                category: [String(option.id), option.slug, option.name],
-            },
-        });
-    }
-
-    if (type === "material") {
-        return db.Product.count({
-            where: {
-                material: [String(option.id), option.slug, option.name],
-            },
-        });
-    }
-
-    if (type === "color") {
-        const rows = await db.sequelize.query(
-            `
-            select count(*)::int as count
-            from products
-            where color in (:values)
-            `,
-            {
-                replacements: {
-                    values: [String(option.id), option.slug, option.name],
-                },
-                type: db.sequelize.QueryTypes.SELECT,
-            },
-        );
-
-        return Number(rows[0]?.count || 0);
-    }
-
-    return 0;
-};
+const getCatalogUsageCount = async (type, option) =>
+    db.Product.count({
+        where: {
+            [type]: [String(option.id), option.slug, option.name],
+        },
+    });
 
 const handleCreateCatalogOption = async ({ type, name, slug }) => {
     try {
@@ -231,44 +145,6 @@ const handleCreateCatalogOption = async ({ type, name, slug }) => {
             name: name.trim(),
             slug: slug?.trim() || slugifyFilterOption(name),
         };
-
-        if (type === "color") {
-            await ensureColorsTable();
-            const existed = await db.sequelize.query(
-                `
-                select id from colors where slug = :slug or name = :name limit 1
-                `,
-                {
-                    replacements: normalizedOption,
-                    type: db.sequelize.QueryTypes.SELECT,
-                },
-            );
-
-            if (existed.length > 0) {
-                return {
-                    code: ResponseCode.VALIDATION_ERROR,
-                    message: "Option already exists.",
-                };
-            }
-
-            const created = await db.sequelize.query(
-                `
-                insert into colors (slug, name, "createdAt", "updatedAt")
-                values (:slug, :name, now(), now())
-                returning id, slug, name
-                `,
-                {
-                    replacements: normalizedOption,
-                    type: db.sequelize.QueryTypes.SELECT,
-                },
-            );
-
-            return {
-                code: ResponseCode.SUCCESS,
-                message: "Create option successfully.",
-                result: created[0],
-            };
-        }
 
         const Model = getCatalogModel(type);
         await ensureCatalogSequence(type);
@@ -317,53 +193,6 @@ const handleUpdateCatalogOption = async ({ type, id, name, slug }) => {
             slug: slug?.trim() || slugifyFilterOption(name),
         };
 
-        if (type === "color") {
-            await ensureColorsTable();
-            const rows = await db.sequelize.query(
-                "select id, slug, name from colors where id = :id",
-                {
-                    replacements: { id },
-                    type: db.sequelize.QueryTypes.SELECT,
-                },
-            );
-            const existed = rows[0];
-
-            if (!existed) {
-                return {
-                    code: ResponseCode.FILE_NOT_FOUND,
-                    message: "Option not found.",
-                };
-            }
-
-            await db.sequelize.transaction(async (transaction) => {
-                await db.sequelize.query(
-                    `
-                    update colors
-                    set slug = :slug, name = :name, "updatedAt" = now()
-                    where id = :id
-                    `,
-                    {
-                        replacements: { ...normalizedOption, id },
-                        transaction,
-                    },
-                );
-                await db.Product.update(
-                    { color: normalizedOption.name },
-                    {
-                        where: {
-                            color: [String(existed.id), existed.slug, existed.name],
-                        },
-                        transaction,
-                    },
-                );
-            });
-
-            return {
-                code: ResponseCode.SUCCESS,
-                message: "Update option successfully.",
-            };
-        }
-
         const Model = getCatalogModel(type);
         const existed = await Model.findOne({ raw: true, where: { id } });
 
@@ -371,6 +200,21 @@ const handleUpdateCatalogOption = async ({ type, id, name, slug }) => {
             return {
                 code: ResponseCode.FILE_NOT_FOUND,
                 message: "Option not found.",
+            };
+        }
+
+        const duplicate = await Model.findOne({
+            raw: true,
+            where: {
+                id: { [Op.ne]: id },
+                [Op.or]: [{ slug: normalizedOption.slug }, { name: normalizedOption.name }],
+            },
+        });
+
+        if (duplicate) {
+            return {
+                code: ResponseCode.VALIDATION_ERROR,
+                message: "Option already exists.",
             };
         }
 
@@ -395,42 +239,6 @@ const handleDeleteCatalogOption = async ({ type, id }) => {
             return {
                 code: ResponseCode.MISSING_PARAMETER,
                 message: "Missing parameter(s). Check again.",
-            };
-        }
-
-        if (type === "color") {
-            await ensureColorsTable();
-            const rows = await db.sequelize.query(
-                "select id, slug, name from colors where id = :id",
-                {
-                    replacements: { id },
-                    type: db.sequelize.QueryTypes.SELECT,
-                },
-            );
-            const existed = rows[0];
-
-            if (!existed) {
-                return {
-                    code: ResponseCode.FILE_NOT_FOUND,
-                    message: "Option not found.",
-                };
-            }
-
-            const usageCount = await getCatalogUsageCount(type, existed);
-            if (usageCount > 0) {
-                return {
-                    code: ResponseCode.VALIDATION_ERROR,
-                    message: "Option is being used by products.",
-                };
-            }
-
-            await db.sequelize.query("delete from colors where id = :id", {
-                replacements: { id },
-            });
-
-            return {
-                code: ResponseCode.SUCCESS,
-                message: "Delete option successfully.",
             };
         }
 
@@ -492,19 +300,10 @@ const slugifyFilterOption = (text) => {
 
 const handleCountProducts = async () => {
     try {
-        await ensureColorsTable();
-
         const [categories, materials, colors, products] = await Promise.all([
             db.Category.findAll({ raw: true, order: [["id", "ASC"]] }),
             db.Material.findAll({ raw: true, order: [["id", "ASC"]] }),
-            db.sequelize.query(
-                `
-                select id, slug, name
-                from colors
-                order by id asc
-                `,
-                { type: db.sequelize.QueryTypes.SELECT },
-            ),
+            db.Color.findAll({ raw: true, order: [["id", "ASC"]] }),
             db.Product.findAll({
                 attributes: ["category", "material", "color"],
                 raw: true,
@@ -564,32 +363,13 @@ const getOptionValues = async (Model, slugs) => {
     return rows.flatMap((item) => [String(item.id), item.name, item.slug]);
 };
 
-const getColorValues = async (slugs) => {
-    if (_.isEmpty(slugs)) {
-        return [];
-    }
-
-    const products = await db.Product.findAll({
-        raw: true,
-        attributes: ["color"],
-    });
-
-    return [
-        ...new Set(
-            products
-                .map((product) => product.color)
-                .filter((color) => color && (slugs.includes(color) || slugs.includes(slugifyFilterOption(color)))),
-        ),
-    ];
-};
-
 const handleGetProducts = async ({ categories = "all", materials, colors, page }) => {
     try {
         const currentPage = page && !_.isNaN(page) ? page : 1;
         const [categoryValues, materialValues, colorValues] = await Promise.all([
             getOptionValues(db.Category, getQueryValues(categories)),
             getOptionValues(db.Material, getQueryValues(materials)),
-            getColorValues(getQueryValues(colors)),
+            getOptionValues(db.Color, getQueryValues(colors)),
         ]);
         const where = {};
 
@@ -644,7 +424,6 @@ const handleGetProductBy = async ({ slug, id }) => {
         });
         if (product) {
             const productData = toPlainObject(product);
-            await ensureColorsTable();
 
             const [images, category, material, color] = await Promise.all([
                 db.Image.findAll({
@@ -674,20 +453,16 @@ const handleGetProductBy = async ({ slug, id }) => {
                         ],
                     },
                 }),
-                db.sequelize
-                    .query(
-                        `
-                        select id, slug, name
-                        from colors
-                        where id::text = :color or slug = :color or name = :color
-                        limit 1
-                        `,
-                        {
-                            replacements: { color: productData.color },
-                            type: db.sequelize.QueryTypes.SELECT,
-                        },
-                    )
-                    .then((rows) => rows[0]),
+                db.Color.findOne({
+                    raw: true,
+                    where: {
+                        [Op.or]: [
+                            { id: Number(productData.color) || 0 },
+                            { name: productData.color },
+                            { slug: productData.color },
+                        ],
+                    },
+                }),
             ]);
 
             return {
@@ -778,37 +553,40 @@ const handleSearchProducts = async (keyword, page) => {
 };
 
 const handleCreateProduct = async (product) => {
+    let transaction;
+
     try {
+        transaction = await sequelize.transaction();
+        const { images = [], ...productFields } = product;
         const productToInsert = {
-            ...product,
+            ...productFields,
             sold: 0,
         };
 
-        const createdProduct = await db.Product.create(productToInsert);
-        // if success store uploaded images to database
-        if (createdProduct) {
-            const imagesToInsert = product.images.map((image) => ({
+        const createdProduct = await db.Product.create(productToInsert, { transaction });
+        const imagesToInsert = images
+            .filter((image) => image?.public_id && image?.secure_url)
+            .map((image) => ({
                 target_id: createdProduct.id,
                 target_type: "product",
                 public_id: image.public_id,
                 secure_url: image.secure_url,
                 thumbnail_url: image.thumbnail_url,
             }));
-            await db.Image.bulkCreate(imagesToInsert);
 
-            return {
-                code: ResponseCode.SUCCESS,
-                message: "Create product successfully.",
-            };
+        if (imagesToInsert.length > 0) {
+            await db.Image.bulkCreate(imagesToInsert, { transaction });
         }
-        // if not rollback uploaded images in cloud
-        await imageService.handleRemoveImagesFromCloud(product.images);
+
+        await transaction.commit();
 
         return {
             code: ResponseCode.SUCCESS,
             message: "Create product successfully.",
         };
     } catch (error) {
+        await rollbackTransaction(transaction);
+        await imageService.handleRemoveImagesFromCloud(product.images || []);
         console.log(error);
 
         return {
@@ -819,11 +597,13 @@ const handleCreateProduct = async (product) => {
 };
 
 const handleUpdateProduct = async (product) => {
-    const t = await sequelize.transaction();
+    let t;
     try {
+        t = await sequelize.transaction();
         const { images = [], ...productFields } = product;
         const existed = await db.Product.findOne({
             where: { id: productFields.id },
+            transaction: t,
         });
 
         if (!existed) {
@@ -840,6 +620,7 @@ const handleUpdateProduct = async (product) => {
                 target_id: productFields.id,
                 target_type: "product",
             },
+            transaction: t,
         });
 
         const normalizedImages = images.filter((image) => image && image.secure_url && image.public_id);
@@ -851,44 +632,44 @@ const handleUpdateProduct = async (product) => {
                 !lastVersionImages.some((item) => item.id === image.id || item.public_id === image.public_id),
         );
 
-        await Promise.all([
-            removedImages.length > 0 &&
-                db.Image.destroy({
-                    where: {
-                        [Op.or]: [
-                            { id: removedImages.map((image) => image.id).filter(Boolean) },
-                            { public_id: removedImages.map((image) => image.public_id).filter(Boolean) },
-                        ],
-                        target_id: productFields.id,
-                        target_type: "product",
-                    },
-                    transaction: t,
-                }),
-
-            uploadedImages.length > 0 &&
-                db.Image.bulkCreate(
-                    uploadedImages.map((image) => ({
-                        target_id: productFields.id,
-                        target_type: "product",
-                        public_id: image.public_id,
-                        secure_url: image.secure_url,
-                        thumbnail_url: image.thumbnail_url,
-                    })),
-                    { transaction: t },
-                ),
-
-            db.Product.update(
-                {
-                    ...productFields,
+        if (removedImages.length > 0) {
+            await db.Image.destroy({
+                where: {
+                    [Op.or]: [
+                        { id: removedImages.map((image) => image.id).filter(Boolean) },
+                        { public_id: removedImages.map((image) => image.public_id).filter(Boolean) },
+                    ],
+                    target_id: productFields.id,
+                    target_type: "product",
                 },
-                {
-                    where: {
-                        id: productFields.id,
-                    },
-                    transaction: t,
+                transaction: t,
+            });
+        }
+
+        if (uploadedImages.length > 0) {
+            await db.Image.bulkCreate(
+                uploadedImages.map((image) => ({
+                    target_id: productFields.id,
+                    target_type: "product",
+                    public_id: image.public_id,
+                    secure_url: image.secure_url,
+                    thumbnail_url: image.thumbnail_url,
+                })),
+                { transaction: t },
+            );
+        }
+
+        await db.Product.update(
+            {
+                ...productFields,
+            },
+            {
+                where: {
+                    id: productFields.id,
                 },
-            ),
-        ]);
+                transaction: t,
+            },
+        );
 
         await t.commit();
 
@@ -897,7 +678,7 @@ const handleUpdateProduct = async (product) => {
             message: "Update product successfully.",
         };
     } catch (error) {
-        await t.rollback();
+        await rollbackTransaction(t);
         console.log(error);
         return {
             code: ResponseCode.INTERNAL_SERVER_ERROR,
@@ -907,17 +688,20 @@ const handleUpdateProduct = async (product) => {
 };
 
 const handleDeleteProduct = async (product) => {
-    const t = await sequelize.transaction();
+    let t;
     try {
+        t = await sequelize.transaction();
         const existed = await db.Product.findOne({
             where: {
                 id: product.id,
                 name: product.name,
                 price: product.price,
             },
+            transaction: t,
         });
 
         if (!existed) {
+            await t.rollback();
             return {
                 code: ResponseCode.FILE_NOT_FOUND,
                 message: "Invalid product.",
@@ -929,32 +713,35 @@ const handleDeleteProduct = async (product) => {
                 target_id: product.id,
                 target_type: "product",
             },
+            transaction: t,
         });
 
-        await Promise.all([
-            db.Product.destroy({
-                where: { id: product.id },
-                transaction: t,
-            }),
-            db.Image.destroy({
-                where: {
-                    target_id: product.id,
-                    target_type: "product",
-                },
-                transaction: t,
-            }),
-        ]);
+        await db.Image.destroy({
+            where: {
+                target_id: product.id,
+                target_type: "product",
+            },
+            transaction: t,
+        });
+        await db.Product.destroy({
+            where: { id: product.id },
+            transaction: t,
+        });
 
         await t.commit();
 
-        await imageService.handleRemoveImagesFromCloud(images);
+        try {
+            await imageService.handleRemoveImagesFromCloud(images);
+        } catch (cloudError) {
+            console.warn("Product deleted, but Cloudinary cleanup failed:", cloudError);
+        }
 
         return {
             code: ResponseCode.SUCCESS,
             message: "Delete product successfully.",
         };
     } catch (error) {
-        await t.rollback();
+        await rollbackTransaction(t);
         console.log(error);
         return {
             code: ResponseCode.INTERNAL_SERVER_ERROR,

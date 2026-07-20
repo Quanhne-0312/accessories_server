@@ -7,7 +7,19 @@
         "dev": "nodemon --exec babel-node src/server",
         "seed:products": "node scripts/seed-products-by-category.js",
         "build": "babel src -d build --copy-files",
+        "prestart": "npm run build",
         "start": "node build/server.js"
+    },
+    "nodemonConfig": {
+        "watch": [
+            "src"
+        ],
+        "ext": "js,json",
+        "ignore": [
+            "build/**",
+            "scripts/**"
+        ],
+        "delay": 250
     },
     "keywords": [
         "fullstack",
@@ -19,22 +31,22 @@
     "license": "ISC",
     "dependencies": {
         "bcryptjs": "^2.4.3",
-        "body-parser": "^1.19.0",
-        "cloudinary": "^1.40.0",
-        "cors": "^2.8.5",
+        "body-parser": "^1.20.6",
+        "cloudinary": "^2.10.0",
+        "cors": "^2.8.6",
         "dotenv": "^8.2.0",
-        "express": "^4.17.1",
-        "jsonwebtoken": "^9.0.1",
-        "lodash": "^4.17.21",
-        "pg": "^8.11.1",
-        "sequelize": "^6.6.2",
-        "sequelize-cli": "^6.2.0"
+        "express": "^4.22.2",
+        "jsonwebtoken": "^9.0.3",
+        "lodash": "^4.18.1",
+        "pg": "^8.22.0",
+        "sequelize": "^6.37.8",
+        "sequelize-cli": "^6.6.5"
     },
     "devDependencies": {
         "@babel/cli": "^7.12.10",
         "@babel/core": "^7.12.0",
         "@babel/node": "^7.12.10",
         "@babel/preset-env": "^7.12.11",
-        "nodemon": "^2.0.20"
+        "nodemon": "^3.1.14"
     }
 }

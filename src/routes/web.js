@@ -13,11 +13,26 @@ import deliveryAddressController from "../controllers/deliveryAddressController"
 import verifyRefreshToken from "../middleware/verifyRefreshToken";
 
 let router = express.Router();
+const asyncHandler = (handler) => (req, res, next) => {
+    try {
+        return Promise.resolve(handler(req, res, next)).catch(next);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+for (const method of ["get", "post", "put", "delete"]) {
+    const registerRoute = router[method].bind(router);
+    router[method] = (path, ...handlers) => registerRoute(path, ...handlers.map(asyncHandler));
+}
+
 const ADMINISTRATOR = 1;
 const EMPLOYEE = 2;
 const MANAGER = 4;
+const CUSTOMER = 3;
 const staffOnly = authorizeRoles(ADMINISTRATOR, EMPLOYEE, MANAGER);
 const managerOnly = authorizeRoles(ADMINISTRATOR, MANAGER);
+const customerOnly = authorizeRoles(CUSTOMER);
 
 let initRoutes = (app) => {
     router.get("/", homeController.getHomepage);
@@ -29,16 +44,26 @@ let initRoutes = (app) => {
     /** AUTH */
 
     router.post("/api/auth/user/login", authController.userLogin);
-    router.post("/api/auth/user/logout", authController.userLogout);
+    router.post("/api/auth/user/logout", verifyAccessToken, staffOnly, authController.userLogout);
     router.post("/api/auth/user/refresh", verifyRefreshToken, authController.userRefresh);
-    router.put("/api/auth/user/update-profile", verifyAccessToken, authController.updateProfile);
+    router.put("/api/auth/user/update-profile", verifyAccessToken, staffOnly, authController.updateProfile);
 
     router.post("/api/auth/customer/login", authController.customerLogin);
-    router.post("/api/auth/customer/logout", authController.customerLogout);
+    router.post("/api/auth/customer/logout", verifyAccessToken, customerOnly, authController.customerLogout);
     router.post("/api/auth/customer/register", authController.customerRegister);
     router.post("/api/auth/customer/refresh", verifyRefreshToken, authController.customerRefreshTokens);
-    router.put("/api/auth/customer/update-profile", verifyAccessToken, authController.customerUpdateProfile);
-    router.post("/api/auth/customer/change-password", verifyAccessToken, authController.changeCustomerPassword);
+    router.put(
+        "/api/auth/customer/update-profile",
+        verifyAccessToken,
+        customerOnly,
+        authController.customerUpdateProfile,
+    );
+    router.post(
+        "/api/auth/customer/change-password",
+        verifyAccessToken,
+        customerOnly,
+        authController.changeCustomerPassword,
+    );
 
     /** USER */
 
@@ -69,9 +94,9 @@ let initRoutes = (app) => {
     router.get("/api/payment-method/get", orderController.getPaymentMethods);
     router.get("/api/status/get", verifyAccessToken, staffOnly, orderController.getOrderStatuses);
     router.get("/api/order/count", verifyAccessToken, staffOnly, orderController.countOrders);
-    router.get("/api/order/get", orderController.getOrder);
-    router.post("/api/order/checkout", orderController.createOrder);
-    router.post("/api/order/customer-cancel", verifyAccessToken, orderController.customerCancelOrder);
+    router.get("/api/order/get", verifyAccessToken, orderController.getOrder);
+    router.post("/api/order/checkout", verifyAccessToken, customerOnly, orderController.createOrder);
+    router.post("/api/order/customer-cancel", verifyAccessToken, customerOnly, orderController.customerCancelOrder);
 
     router.get("/api/auth/order/get", verifyAccessToken, staffOnly, orderController.getAllOrder);
     router.post("/api/order/create", verifyAccessToken, staffOnly, orderController.createOrder);
@@ -97,7 +122,7 @@ let initRoutes = (app) => {
     router.delete("/api/address/delete", verifyAccessToken, deliveryAddressController.deleteDeliveryAddress);
 
     /** IMAGES */
-    router.post("/api/image/rollback", productController.rollbackImages);
+    router.post("/api/image/rollback", verifyAccessToken, productController.rollbackImages);
 
     /** BLOG */
 
@@ -108,7 +133,24 @@ let initRoutes = (app) => {
 
     /** APPLY ROUTER */
 
-    return app.use("/", router);
+    app.use("/", router);
+    app.use((error, req, res, next) => {
+        console.error("Unhandled request error:", error);
+
+        if (res.headersSent) {
+            return next(error);
+        }
+
+        const requestedStatus = Number(error.status || error.statusCode);
+        const status = requestedStatus >= 400 && requestedStatus < 500 ? requestedStatus : 500;
+
+        return res.status(status).json({
+            code: status === 400 ? "VALIDATION_ERROR" : "INTERNAL_SERVER_ERROR",
+            message: status === 400 ? "Invalid request body." : "An unexpected server error occurred.",
+        });
+    });
+
+    return app;
 };
 
 module.exports = initRoutes;

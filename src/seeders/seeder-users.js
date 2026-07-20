@@ -54,6 +54,12 @@ module.exports = {
                 updatedAt: now,
             },
         ]);
+
+        for (const table of ["roles", "status", "payment_methods", "categories", "materials"]) {
+            await queryInterface.sequelize.query(
+                `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), COALESCE(MAX("id"), 1), MAX("id") IS NOT NULL) FROM "${table}";`,
+            );
+        }
     },
 
     down: async (queryInterface, Sequelize) => {

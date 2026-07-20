@@ -5,7 +5,7 @@ let adminLogin = async (req, res) => {
     let password = req.body.password;
 
     if (!phoneNumber || !password) {
-        return res.status(500).json({
+        return res.status(400).json({
             code: 4,
             message: "missing parameter(s)",
         });

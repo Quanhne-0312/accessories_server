@@ -1,18 +1,49 @@
 import bcrypt from "bcryptjs";
 import db from "../models";
-import sequelize from "../config/database";
 import { ResponseCode } from "../constant";
 import _ from "lodash";
 const { Op } = require("sequelize");
+import { rollbackTransaction } from "../utils/transaction";
+const sequelize = db.sequelize;
 
-const handleGetRoles = async (role_id) => {
+const MANAGEABLE_ROLE_IDS = new Map([
+    [1, [2, 3, 4]],
+    [4, [2, 3]],
+]);
+
+const authorizationError = (message = "You are not allowed to manage this account.") => ({
+    code: ResponseCode.AUTHORIZATION_ERROR,
+    message,
+});
+
+const resolveActor = async (actor, transaction) => {
+    const roleId = Number(actor?.role_id);
+    const manageableRoleIds = MANAGEABLE_ROLE_IDS.get(roleId);
+
+    if (!actor?.phone_number || !manageableRoleIds) return null;
+
+    const user = await db.User.findOne({
+        attributes: ["id", "phone_number", "role_id"],
+        where: {
+            phone_number: actor.phone_number,
+            role_id: roleId,
+        },
+        transaction,
+    });
+
+    return user ? { user, manageableRoleIds } : null;
+};
+
+const handleGetRoles = async (actor) => {
     try {
+        const actorContext = await resolveActor(actor);
+        if (!actorContext) return authorizationError();
+
         const roles = await db.Role.findAll({
             where: {
-                id: {
-                    [Op.gt]: role_id ?? 5,
-                },
+                id: actorContext.manageableRoleIds,
             },
+            order: [["id", "ASC"]],
         });
 
         if (roles.length > 0) {
@@ -35,18 +66,27 @@ const handleGetRoles = async (role_id) => {
     }
 };
 
-const handleCountUsers = async (role_id) => {
+const handleCountUsers = async (actor) => {
     try {
+        const actorContext = await resolveActor(actor);
+        if (!actorContext) return authorizationError();
+
         const roleCounts = await db.User.findAll({
             attributes: [
                 "role_id",
                 [sequelize.fn("COUNT", sequelize.col("id")), "user_count"],
             ],
+            where: {
+                role_id: actorContext.manageableRoleIds,
+            },
             group: ["role_id"],
             raw: true,
         });
 
-        const roles = await db.Role.findAll({ raw: true });
+        const roles = await db.Role.findAll({
+            where: { id: actorContext.manageableRoleIds },
+            raw: true,
+        });
         const countByRole = roleCounts
             .map((item) => {
                 const role = roles.find((role) => role.id === item.role_id);
@@ -79,12 +119,25 @@ const handleCountUsers = async (role_id) => {
     }
 };
 
-const handleGetUsers = async (role_id, slug, page, keyword) => {
+const handleGetUsers = async (role_id, slug, page, keyword, actor) => {
     try {
+        const actorContext = await resolveActor(actor);
+        if (!actorContext) return authorizationError();
+
         const currentPage = page && !_.isNaN(page) ? Number(page) : 1;
         const pageSize = 12;
-        const where = {};
+        const where = {
+            role_id: actorContext.manageableRoleIds,
+        };
         const searchKeyword = keyword?.trim();
+
+        if (role_id && role_id !== "all") {
+            const requestedRoleId = Number(role_id);
+            if (!actorContext.manageableRoleIds.includes(requestedRoleId)) {
+                return buildUserListResponse([], 0, currentPage, pageSize);
+            }
+            where.role_id = requestedRoleId;
+        }
 
         if (slug && slug !== "all") {
             const role = await db.Role.findOne({
@@ -95,6 +148,10 @@ const handleGetUsers = async (role_id, slug, page, keyword) => {
             });
 
             if (!role) {
+                return buildUserListResponse([], 0, currentPage, pageSize);
+            }
+
+            if (!actorContext.manageableRoleIds.includes(Number(role.id))) {
                 return buildUserListResponse([], 0, currentPage, pageSize);
             }
 
@@ -154,8 +211,11 @@ const handleGetUsers = async (role_id, slug, page, keyword) => {
     }
 };
 
-const handleGetUserByUsername = async (username) => {
+const handleGetUserByUsername = async (username, actor) => {
     try {
+        const actorContext = await resolveActor(actor);
+        if (!actorContext) return authorizationError();
+
         const user = await db.User.findOne({
             attributes: {
                 exclude: ["password"],
@@ -173,6 +233,10 @@ const handleGetUserByUsername = async (username) => {
         });
 
         if (user) {
+            if (!actorContext.manageableRoleIds.includes(Number(user.role_id))) {
+                return authorizationError();
+            }
+
             const [result] = await appendUserDisplayData([user]);
             const avatar = await db.Image.findOne({
                 attributes: {
@@ -206,8 +270,16 @@ const handleGetUserByUsername = async (username) => {
     }
 };
 
-const handleCreateUser = async (user) => {
+const handleCreateUser = async (user, actor) => {
     try {
+        const actorContext = await resolveActor(actor);
+        if (!actorContext) return authorizationError();
+
+        const requestedRoleId = Number(user.role_id);
+        if (!Number.isSafeInteger(requestedRoleId) || !actorContext.manageableRoleIds.includes(requestedRoleId)) {
+            return authorizationError("You are not allowed to assign that role.");
+        }
+
         if (!isValidPassword(user.password)) {
             return {
                 code: ResponseCode.VALIDATION_ERROR,
@@ -246,7 +318,7 @@ const handleCreateUser = async (user) => {
             bio: user.bio ?? null,
             address: convertedAddress,
             last_login: null,
-            role_id: user.role_id ?? 3,
+            role_id: requestedRoleId,
         });
 
         if (createdUser) {
@@ -277,13 +349,21 @@ const handleCreateUser = async (user) => {
     }
 };
 
-const handleUpdateUser = async (user) => {
-    const t = await sequelize.transaction();
+const handleUpdateUser = async (user, actor) => {
+    let t;
     try {
+        t = await sequelize.transaction();
+        const actorContext = await resolveActor(actor, t);
+        if (!actorContext) {
+            await t.rollback();
+            return authorizationError();
+        }
+
         const existedUser = await db.User.findOne({
             where: {
                 phone_number: user.phone_number,
             },
+            transaction: t,
         });
 
         if (!existedUser) {
@@ -294,6 +374,17 @@ const handleUpdateUser = async (user) => {
             };
         }
 
+        const requestedRoleId = Number(user.role_id);
+        if (
+            existedUser.phone_number === actorContext.user.phone_number ||
+            !actorContext.manageableRoleIds.includes(Number(existedUser.role_id)) ||
+            !Number.isSafeInteger(requestedRoleId) ||
+            !actorContext.manageableRoleIds.includes(requestedRoleId)
+        ) {
+            await t.rollback();
+            return authorizationError();
+        }
+
         if (user.email && user.email !== existedUser.email) {
             const duplicatedEmail = await db.User.findOne({
                 where: {
@@ -302,6 +393,7 @@ const handleUpdateUser = async (user) => {
                         [Op.ne]: existedUser.id,
                     },
                 },
+                transaction: t,
             });
 
             if (duplicatedEmail) {
@@ -317,13 +409,16 @@ const handleUpdateUser = async (user) => {
         const updatedUser = {
             name: user.name,
             email: user.email,
-            role_id: user.role_id,
+            role_id: requestedRoleId,
             birth: user.birth || null,
             bio: user.bio,
             address: convertedAddress,
         };
 
-        if (user.password && user.password.trim()) {
+        const passwordChanged = Boolean(user.password && user.password.trim());
+        const roleChanged = Number(existedUser.role_id) !== requestedRoleId;
+
+        if (passwordChanged) {
             if (!isValidPassword(user.password)) {
                 await t.rollback();
                 return {
@@ -341,6 +436,13 @@ const handleUpdateUser = async (user) => {
             },
             transaction: t,
         });
+
+        if (passwordChanged || roleChanged) {
+            await db.RefreshToken.destroy({
+                where: { phone_number: existedUser.phone_number },
+                transaction: t,
+            });
+        }
 
         if (user.avatar) {
             const [, created] = await db.Image.findOrCreate({
@@ -381,7 +483,7 @@ const handleUpdateUser = async (user) => {
             message: "Update user successfully.",
         };
     } catch (error) {
-        await t.rollback();
+        await rollbackTransaction(t);
         console.log(error);
         return {
             code: ResponseCode.INTERNAL_SERVER_ERROR,
@@ -390,22 +492,45 @@ const handleUpdateUser = async (user) => {
     }
 };
 
-const handleDeleteUser = async (user) => {
+const handleDeleteUser = async (user, actor) => {
+    let transaction;
     try {
+        transaction = await sequelize.transaction();
+        const actorContext = await resolveActor(actor, transaction);
+        if (!actorContext) {
+            await transaction.rollback();
+            return authorizationError();
+        }
+
         const existed = await db.User.findOne({
             where: {
                 id: user.id,
                 phone_number: user.phone_number,
                 email: user.email,
             },
+            transaction,
         });
 
         if (!existed) {
+            await transaction.rollback();
             return {
                 code: ResponseCode.FILE_NOT_FOUND,
                 message: "Invalid user account.",
             };
         }
+
+        if (
+            existed.phone_number === actorContext.user.phone_number ||
+            !actorContext.manageableRoleIds.includes(Number(existed.role_id))
+        ) {
+            await transaction.rollback();
+            return authorizationError();
+        }
+
+        await db.RefreshToken.destroy({
+            where: { phone_number: existed.phone_number },
+            transaction,
+        });
 
         await db.User.destroy({
             where: {
@@ -413,13 +538,16 @@ const handleDeleteUser = async (user) => {
                 phone_number: user.phone_number,
                 email: user.email,
             },
+            transaction,
         });
+        await transaction.commit();
 
         return {
             code: ResponseCode.SUCCESS,
             message: "Delete user successfully.",
         };
     } catch (error) {
+        await rollbackTransaction(transaction);
         console.log(error);
         return {
             code: ResponseCode.INTERNAL_SERVER_ERROR,

@@ -13,13 +13,43 @@ var _verifyAccessToken = _interopRequireDefault(require("../middleware/verifyAcc
 var _authorizeRoles = _interopRequireDefault(require("../middleware/authorizeRoles"));
 var _deliveryAddressController = _interopRequireDefault(require("../controllers/deliveryAddressController"));
 var _verifyRefreshToken = _interopRequireDefault(require("../middleware/verifyRefreshToken"));
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+function _interopRequireDefault(e) { return e && e.__esModule ? e : { "default": e }; }
+function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
+function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) { n[e] = r[e]; } return n; }
 var router = _express["default"].Router();
+var asyncHandler = function asyncHandler(handler) {
+  return function (req, res, next) {
+    try {
+      return Promise.resolve(handler(req, res, next))["catch"](next);
+    } catch (error) {
+      return next(error);
+    }
+  };
+};
+var _loop = function _loop() {
+  var method = _arr[_i];
+  var registerRoute = router[method].bind(router);
+  router[method] = function (path) {
+    for (var _len = arguments.length, handlers = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      handlers[_key - 1] = arguments[_key];
+    }
+    return registerRoute.apply(void 0, [path].concat(_toConsumableArray(handlers.map(asyncHandler))));
+  };
+};
+for (var _i = 0, _arr = ["get", "post", "put", "delete"]; _i < _arr.length; _i++) {
+  _loop();
+}
 var ADMINISTRATOR = 1;
 var EMPLOYEE = 2;
 var MANAGER = 4;
+var CUSTOMER = 3;
 var staffOnly = (0, _authorizeRoles["default"])(ADMINISTRATOR, EMPLOYEE, MANAGER);
 var managerOnly = (0, _authorizeRoles["default"])(ADMINISTRATOR, MANAGER);
+var customerOnly = (0, _authorizeRoles["default"])(CUSTOMER);
 var initRoutes = function initRoutes(app) {
   router.get("/", _homeController["default"].getHomepage);
 
@@ -30,15 +60,15 @@ var initRoutes = function initRoutes(app) {
   /** AUTH */
 
   router.post("/api/auth/user/login", _authController["default"].userLogin);
-  router.post("/api/auth/user/logout", _authController["default"].userLogout);
+  router.post("/api/auth/user/logout", _verifyAccessToken["default"], staffOnly, _authController["default"].userLogout);
   router.post("/api/auth/user/refresh", _verifyRefreshToken["default"], _authController["default"].userRefresh);
-  router.put("/api/auth/user/update-profile", _verifyAccessToken["default"], _authController["default"].updateProfile);
+  router.put("/api/auth/user/update-profile", _verifyAccessToken["default"], staffOnly, _authController["default"].updateProfile);
   router.post("/api/auth/customer/login", _authController["default"].customerLogin);
-  router.post("/api/auth/customer/logout", _authController["default"].customerLogout);
+  router.post("/api/auth/customer/logout", _verifyAccessToken["default"], customerOnly, _authController["default"].customerLogout);
   router.post("/api/auth/customer/register", _authController["default"].customerRegister);
   router.post("/api/auth/customer/refresh", _verifyRefreshToken["default"], _authController["default"].customerRefreshTokens);
-  router.put("/api/auth/customer/update-profile", _verifyAccessToken["default"], _authController["default"].customerUpdateProfile);
-  router.post("/api/auth/customer/change-password", _verifyAccessToken["default"], _authController["default"].changeCustomerPassword);
+  router.put("/api/auth/customer/update-profile", _verifyAccessToken["default"], customerOnly, _authController["default"].customerUpdateProfile);
+  router.post("/api/auth/customer/change-password", _verifyAccessToken["default"], customerOnly, _authController["default"].changeCustomerPassword);
 
   /** USER */
 
@@ -69,9 +99,9 @@ var initRoutes = function initRoutes(app) {
   router.get("/api/payment-method/get", _orderController["default"].getPaymentMethods);
   router.get("/api/status/get", _verifyAccessToken["default"], staffOnly, _orderController["default"].getOrderStatuses);
   router.get("/api/order/count", _verifyAccessToken["default"], staffOnly, _orderController["default"].countOrders);
-  router.get("/api/order/get", _orderController["default"].getOrder);
-  router.post("/api/order/checkout", _orderController["default"].createOrder);
-  router.post("/api/order/customer-cancel", _verifyAccessToken["default"], _orderController["default"].customerCancelOrder);
+  router.get("/api/order/get", _verifyAccessToken["default"], _orderController["default"].getOrder);
+  router.post("/api/order/checkout", _verifyAccessToken["default"], customerOnly, _orderController["default"].createOrder);
+  router.post("/api/order/customer-cancel", _verifyAccessToken["default"], customerOnly, _orderController["default"].customerCancelOrder);
   router.get("/api/auth/order/get", _verifyAccessToken["default"], staffOnly, _orderController["default"].getAllOrder);
   router.post("/api/order/create", _verifyAccessToken["default"], staffOnly, _orderController["default"].createOrder);
   router.put("/api/order/update", _verifyAccessToken["default"], staffOnly, _orderController["default"].updateOrder);
@@ -96,7 +126,7 @@ var initRoutes = function initRoutes(app) {
   router["delete"]("/api/address/delete", _verifyAccessToken["default"], _deliveryAddressController["default"].deleteDeliveryAddress);
 
   /** IMAGES */
-  router.post("/api/image/rollback", _productController["default"].rollbackImages);
+  router.post("/api/image/rollback", _verifyAccessToken["default"], _productController["default"].rollbackImages);
 
   /** BLOG */
 
@@ -107,6 +137,19 @@ var initRoutes = function initRoutes(app) {
 
   /** APPLY ROUTER */
 
-  return app.use("/", router);
+  app.use("/", router);
+  app.use(function (error, req, res, next) {
+    console.error("Unhandled request error:", error);
+    if (res.headersSent) {
+      return next(error);
+    }
+    var requestedStatus = Number(error.status || error.statusCode);
+    var status = requestedStatus >= 400 && requestedStatus < 500 ? requestedStatus : 500;
+    return res.status(status).json({
+      code: status === 400 ? "VALIDATION_ERROR" : "INTERNAL_SERVER_ERROR",
+      message: status === 400 ? "Invalid request body." : "An unexpected server error occurred."
+    });
+  });
+  return app;
 };
 module.exports = initRoutes;

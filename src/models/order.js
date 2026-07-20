@@ -22,13 +22,22 @@ module.exports = (sequelize, DataTypes) => {
 
     Order.init(
         {
-            order_uuid: DataTypes.STRING,
+            order_uuid: {
+                type: DataTypes.STRING,
+                allowNull: false,
+                unique: true,
+            },
             customer_phone_number: DataTypes.STRING,
             note: DataTypes.TEXT,
             subtotal: DataTypes.DOUBLE,
             discount: DataTypes.DOUBLE,
             shipping_fee: DataTypes.DOUBLE,
             total: DataTypes.DECIMAL,
+            inventory_reserved: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: false,
+            },
         },
         {
             sequelize,

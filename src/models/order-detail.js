@@ -10,6 +10,7 @@ module.exports = (sequelize, DataTypes) => {
         static associate(models) {
             OrderDetail.belongsTo(models.Order, {
                 foreignKey: "order_uuid",
+                targetKey: "order_uuid",
             });
             OrderDetail.belongsTo(models.Product, {
                 foreignKey: "product_id",
@@ -18,6 +19,11 @@ module.exports = (sequelize, DataTypes) => {
     }
     OrderDetail.init(
         {
+            order_uuid: {
+                type: DataTypes.STRING,
+                allowNull: false,
+            },
+            product_id: DataTypes.INTEGER,
             slug: DataTypes.STRING,
             name: DataTypes.STRING,
             feature_image_url: DataTypes.TEXT,
