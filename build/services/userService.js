@@ -443,7 +443,7 @@ var handleGetUserByUsername = /*#__PURE__*/function () {
 }();
 var handleCreateUser = /*#__PURE__*/function () {
   var _ref6 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee6(user, actor) {
-    var _user$name, _user$birth, _user$bio, actorContext, requestedRoleId, existedUser, hashedPassword, convertedAddress, createdUser;
+    var _user$bio, actorContext, phoneNumber, email, name, requestedRoleId, existedUser, hashedPassword, convertedAddress, createdUser;
     return _regeneratorRuntime().wrap(function _callee6$(_context6) {
       while (1) {
         switch (_context6.prev = _context6.next) {
@@ -459,66 +459,78 @@ var handleCreateUser = /*#__PURE__*/function () {
             }
             return _context6.abrupt("return", authorizationError());
           case 6:
+            phoneNumber = typeof user.phone_number === "string" ? user.phone_number.trim() : "";
+            email = typeof user.email === "string" ? user.email.trim().toLowerCase() : "";
+            name = typeof user.name === "string" ? user.name.trim() : "";
+            if (!(!phoneNumber || !email)) {
+              _context6.next = 11;
+              break;
+            }
+            return _context6.abrupt("return", {
+              code: _constant.ResponseCode.VALIDATION_ERROR,
+              message: "Phone number and email are required."
+            });
+          case 11:
             requestedRoleId = Number(user.role_id);
             if (!(!Number.isSafeInteger(requestedRoleId) || !actorContext.manageableRoleIds.includes(requestedRoleId))) {
-              _context6.next = 9;
+              _context6.next = 14;
               break;
             }
             return _context6.abrupt("return", authorizationError("You are not allowed to assign that role."));
-          case 9:
+          case 14:
             if (isValidPassword(user.password)) {
-              _context6.next = 11;
+              _context6.next = 16;
               break;
             }
             return _context6.abrupt("return", {
               code: _constant.ResponseCode.VALIDATION_ERROR,
               message: "Password must be longer than 6 characters, start with an uppercase letter and contain a number."
             });
-          case 11:
-            _context6.next = 13;
+          case 16:
+            _context6.next = 18;
             return _models["default"].User.findOne({
               where: _defineProperty({}, Op.or, [{
-                phone_number: user.phone_number
+                phone_number: phoneNumber
               }, {
-                email: user.email
+                email: email
               }])
             });
-          case 13:
+          case 18:
             existedUser = _context6.sent;
             if (!existedUser) {
-              _context6.next = 16;
+              _context6.next = 21;
               break;
             }
             return _context6.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "Phone number or email already in use."
             });
-          case 16:
+          case 21:
             hashedPassword = hashPassword(user.password);
             convertedAddress = handleConvertAddressType(user.address);
-            _context6.next = 20;
+            _context6.next = 25;
             return _models["default"].User.create({
-              phone_number: user.phone_number,
-              email: user.email,
+              phone_number: phoneNumber,
+              email: email,
               password: hashedPassword,
-              name: (_user$name = user.name) !== null && _user$name !== void 0 ? _user$name : user.phone_number,
-              birth: (_user$birth = user.birth) !== null && _user$birth !== void 0 ? _user$birth : null,
+              name: name || phoneNumber,
+              birth: user.birth || null,
               bio: (_user$bio = user.bio) !== null && _user$bio !== void 0 ? _user$bio : null,
               address: convertedAddress,
               last_login: null,
               role_id: requestedRoleId
             });
-          case 20:
+          case 25:
             createdUser = _context6.sent;
             if (!createdUser) {
-              _context6.next = 26;
+              _context6.next = 31;
               break;
             }
             if (!user.avatar) {
-              _context6.next = 25;
+              _context6.next = 30;
               break;
             }
-            _context6.next = 25;
+            _context6.next = 30;
             return _models["default"].Image.create({
               target_id: createdUser.id,
               target_type: "avatar",
@@ -526,30 +538,30 @@ var handleCreateUser = /*#__PURE__*/function () {
               secure_url: user.avatar.secure_url,
               thumbnail_url: user.avatar.thumbnail_url
             });
-          case 25:
+          case 30:
             return _context6.abrupt("return", {
               code: _constant.ResponseCode.SUCCESS,
               message: "Create user successfully."
             });
-          case 26:
+          case 31:
             return _context6.abrupt("return", {
               code: _constant.ResponseCode.DATABASE_ERROR,
               message: "Create user failure."
             });
-          case 29:
-            _context6.prev = 29;
+          case 34:
+            _context6.prev = 34;
             _context6.t0 = _context6["catch"](0);
             console.log(_context6.t0);
             return _context6.abrupt("return", {
               code: _constant.ResponseCode.INTERNAL_SERVER_ERROR,
               message: "Error occurs, check again!"
             });
-          case 33:
+          case 38:
           case "end":
             return _context6.stop();
         }
       }
-    }, _callee6, null, [[0, 29]]);
+    }, _callee6, null, [[0, 34]]);
   }));
   return function handleCreateUser(_x10, _x11) {
     return _ref6.apply(this, arguments);

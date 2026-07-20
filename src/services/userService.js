@@ -275,6 +275,17 @@ const handleCreateUser = async (user, actor) => {
         const actorContext = await resolveActor(actor);
         if (!actorContext) return authorizationError();
 
+        const phoneNumber = typeof user.phone_number === "string" ? user.phone_number.trim() : "";
+        const email = typeof user.email === "string" ? user.email.trim().toLowerCase() : "";
+        const name = typeof user.name === "string" ? user.name.trim() : "";
+
+        if (!phoneNumber || !email) {
+            return {
+                code: ResponseCode.VALIDATION_ERROR,
+                message: "Phone number and email are required.",
+            };
+        }
+
         const requestedRoleId = Number(user.role_id);
         if (!Number.isSafeInteger(requestedRoleId) || !actorContext.manageableRoleIds.includes(requestedRoleId)) {
             return authorizationError("You are not allowed to assign that role.");
@@ -291,10 +302,10 @@ const handleCreateUser = async (user, actor) => {
             where: {
                 [Op.or]: [
                     {
-                        phone_number: user.phone_number,
+                        phone_number: phoneNumber,
                     },
                     {
-                        email: user.email,
+                        email,
                     },
                 ],
             },
@@ -310,11 +321,11 @@ const handleCreateUser = async (user, actor) => {
         const hashedPassword = hashPassword(user.password);
         const convertedAddress = handleConvertAddressType(user.address);
         const createdUser = await db.User.create({
-            phone_number: user.phone_number,
-            email: user.email,
+            phone_number: phoneNumber,
+            email,
             password: hashedPassword,
-            name: user.name ?? user.phone_number,
-            birth: user.birth ?? null,
+            name: name || phoneNumber,
+            birth: user.birth || null,
             bio: user.bio ?? null,
             address: convertedAddress,
             last_login: null,
