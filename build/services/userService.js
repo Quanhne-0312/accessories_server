@@ -443,7 +443,7 @@ var handleGetUserByUsername = /*#__PURE__*/function () {
 }();
 var handleCreateUser = /*#__PURE__*/function () {
   var _ref6 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee6(user, actor) {
-    var _user$bio, actorContext, phoneNumber, email, name, requestedRoleId, existedUser, hashedPassword, convertedAddress, createdUser;
+    var _user$birth, _user$bio, actorContext, phoneNumber, email, name, requestedRoleId, existedUser, hashedPassword, convertedAddress, createdUser;
     return _regeneratorRuntime().wrap(function _callee6$(_context6) {
       while (1) {
         switch (_context6.prev = _context6.next) {
@@ -514,7 +514,7 @@ var handleCreateUser = /*#__PURE__*/function () {
               email: email,
               password: hashedPassword,
               name: name || phoneNumber,
-              birth: user.birth || null,
+              birth: typeof user.birth === "string" ? user.birth.trim() || null : (_user$birth = user.birth) !== null && _user$birth !== void 0 ? _user$birth : null,
               bio: (_user$bio = user.bio) !== null && _user$bio !== void 0 ? _user$bio : null,
               address: convertedAddress,
               last_login: null,
@@ -569,7 +569,7 @@ var handleCreateUser = /*#__PURE__*/function () {
 }();
 var handleUpdateUser = /*#__PURE__*/function () {
   var _ref7 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee7(user, actor) {
-    var t, actorContext, existedUser, requestedRoleId, duplicatedEmail, convertedAddress, updatedUser, passwordChanged, roleChanged, _yield$db$Image$findO, _yield$db$Image$findO2, created;
+    var t, _user$birth2, actorContext, existedUser, requestedRoleId, duplicatedEmail, convertedAddress, updatedUser, passwordChanged, roleChanged, _yield$db$Image$findO, _yield$db$Image$findO2, created;
     return _regeneratorRuntime().wrap(function _callee7$(_context7) {
       while (1) {
         switch (_context7.prev = _context7.next) {
@@ -654,7 +654,7 @@ var handleUpdateUser = /*#__PURE__*/function () {
               name: user.name,
               email: user.email,
               role_id: requestedRoleId,
-              birth: user.birth || null,
+              birth: typeof user.birth === "string" ? user.birth.trim() || null : (_user$birth2 = user.birth) !== null && _user$birth2 !== void 0 ? _user$birth2 : null,
               bio: user.bio,
               address: convertedAddress
             };

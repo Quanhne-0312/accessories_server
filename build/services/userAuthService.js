@@ -382,7 +382,7 @@ var handleGenerateRefreshToken = /*#__PURE__*/function () {
 }();
 var handleUpdateProfile = /*#__PURE__*/function () {
   var _ref5 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee5(profile) {
-    var t, user, duplicatedEmail, convertedAddress, updatedProfile, passwordChanged, _yield$db$Image$findO, _yield$db$Image$findO2, created;
+    var t, _profile$birth, user, duplicatedEmail, convertedAddress, updatedProfile, passwordChanged, _yield$db$Image$findO, _yield$db$Image$findO2, created;
     return _regeneratorRuntime().wrap(function _callee5$(_context5) {
       while (1) {
         switch (_context5.prev = _context5.next) {
@@ -443,7 +443,7 @@ var handleUpdateProfile = /*#__PURE__*/function () {
             updatedProfile = {
               name: profile.name,
               email: profile.email,
-              birth: profile.birth || null,
+              birth: typeof profile.birth === "string" ? profile.birth.trim() || null : (_profile$birth = profile.birth) !== null && _profile$birth !== void 0 ? _profile$birth : null,
               bio: profile.bio,
               address: convertedAddress
             };

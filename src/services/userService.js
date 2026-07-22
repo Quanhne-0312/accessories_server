@@ -325,7 +325,7 @@ const handleCreateUser = async (user, actor) => {
             email,
             password: hashedPassword,
             name: name || phoneNumber,
-            birth: user.birth || null,
+            birth: typeof user.birth === "string" ? user.birth.trim() || null : user.birth ?? null,
             bio: user.bio ?? null,
             address: convertedAddress,
             last_login: null,
@@ -421,7 +421,7 @@ const handleUpdateUser = async (user, actor) => {
             name: user.name,
             email: user.email,
             role_id: requestedRoleId,
-            birth: user.birth || null,
+            birth: typeof user.birth === "string" ? user.birth.trim() || null : user.birth ?? null,
             bio: user.bio,
             address: convertedAddress,
         };

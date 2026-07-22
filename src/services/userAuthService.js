@@ -319,7 +319,7 @@ const handleUpdateProfile = async (profile) => {
         const updatedProfile = {
             name: profile.name,
             email: profile.email,
-            birth: profile.birth || null,
+            birth: typeof profile.birth === "string" ? profile.birth.trim() || null : profile.birth ?? null,
             bio: profile.bio,
             address: convertedAddress,
         };

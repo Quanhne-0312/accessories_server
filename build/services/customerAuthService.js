@@ -429,7 +429,7 @@ var handleUpdateProfile = /*#__PURE__*/function () {
           case 11:
             updates = {
               name: profile.name,
-              birth: (_profile$birth = profile.birth) !== null && _profile$birth !== void 0 ? _profile$birth : null,
+              birth: typeof profile.birth === "string" ? profile.birth.trim() || null : (_profile$birth = profile.birth) !== null && _profile$birth !== void 0 ? _profile$birth : null,
               bio: (_profile$bio = profile.bio) !== null && _profile$bio !== void 0 ? _profile$bio : null
             };
             if (profile.address) {

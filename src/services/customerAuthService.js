@@ -293,7 +293,7 @@ const handleUpdateProfile = async (profile) => {
 
         const updates = {
             name: profile.name,
-            birth: profile.birth ?? null,
+            birth: typeof profile.birth === "string" ? profile.birth.trim() || null : profile.birth ?? null,
             bio: profile.bio ?? null,
         };
 
