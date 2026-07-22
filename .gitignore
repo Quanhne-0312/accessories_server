@@ -3,3 +3,6 @@
 /idea
 .idea/
 .env
+/database-backups/
+*.backup
+*.dump

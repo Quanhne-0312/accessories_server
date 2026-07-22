@@ -5,6 +5,10 @@
     "main": "server.js",
     "scripts": {
         "dev": "nodemon --exec babel-node src/server",
+        "db:create": "sequelize-cli db:create",
+        "db:migrate": "sequelize-cli db:migrate",
+        "db:seed": "sequelize-cli db:seed:all",
+        "db:setup": "node scripts/setup-database.js",
         "seed:products": "node scripts/seed-products-by-category.js",
         "sync:product-images": "node scripts/sync-product-images.js",
         "build": "babel src -d build --copy-files",
