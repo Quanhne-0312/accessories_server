@@ -1,6 +1,7 @@
 "use strict";
 
 const db = require("../src/models");
+const { getProductImageSet } = require("./product-image-catalog");
 
 db.sequelize.options.logging = false;
 
@@ -237,6 +238,7 @@ const getRequiredProducts = (categories, materials) => {
             const color = COLORS[(productIndex + categoryIndex) % COLORS.length];
             const slug = slugify(`${name}-${categoryConfig.slug}`);
             const price = 320000 + categoryIndex * 45000 + productIndex * 35000;
+            const imageSet = getProductImageSet(categoryConfig.slug, productIndex);
 
             products.push({
                 name,
@@ -248,11 +250,8 @@ const getRequiredProducts = (categories, materials) => {
                 brand: BRANDS[(productIndex + categoryIndex) % BRANDS.length],
                 quantity: 35 + ((productIndex * 7 + categoryIndex) % 85),
                 sold: (productIndex * 5 + categoryIndex * 9) % 60,
-                feature_image_url: createSvgDataUri({
-                    categorySlug: categoryConfig.slug,
-                    productName: name,
-                    detailIndex: 0,
-                }),
+                feature_image_url: imageSet.urls[0],
+                imageSet,
                 description: buildDescription({ name, category, material, color }),
             });
         });
@@ -288,17 +287,11 @@ const syncImages = async (productId, product, transaction) => {
         transaction,
     });
 
-    const images = [0, 1, 2, 3, 4].map((detailIndex) => {
-        const imageUrl = createSvgDataUri({
-            categorySlug: product.category.slug,
-            productName: product.name,
-            detailIndex,
-        });
-
+    const images = product.imageSet.urls.map((imageUrl, imageIndex) => {
         return {
             target_id: productId,
             target_type: "product",
-            public_id: `seed-products/${product.slug}/detail-${detailIndex}`,
+            public_id: `local-products/${product.slug}/${product.imageSet.fileNames[imageIndex].replace(/\.jpg$/i, "")}`,
             secure_url: imageUrl,
             thumbnail_url: imageUrl,
         };

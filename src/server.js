@@ -2,6 +2,7 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import express from "express";
 import dotenv from "dotenv";
+import path from "path";
 import connectDatabase from "./config/connectdb.js";
 import initRoutes from "./routes/web.js";
 import db from "./models";
@@ -11,6 +12,13 @@ dotenv.config();
 const app = express();
 
 app.use(cors({ origin: true }));
+
+app.use(
+    "/product-images",
+    express.static(path.resolve(process.cwd(), "public", "product-images"), {
+        maxAge: "1d",
+    }),
+);
 
 app.use(bodyParser.json({ limit: "25mb" }));
 

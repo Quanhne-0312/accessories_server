@@ -730,6 +730,7 @@ var handleGetProductBy = /*#__PURE__*/function () {
             _context10.next = 10;
             return Promise.all([_models["default"].Image.findAll({
               raw: true,
+              order: [["id", "ASC"]],
               where: {
                 target_id: productData.id,
                 target_type: "product"

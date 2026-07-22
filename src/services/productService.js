@@ -428,6 +428,7 @@ const handleGetProductBy = async ({ slug, id }) => {
             const [images, category, material, color] = await Promise.all([
                 db.Image.findAll({
                     raw: true,
+                    order: [["id", "ASC"]],
                     where: {
                         target_id: productData.id,
                         target_type: "product",

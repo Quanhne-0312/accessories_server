@@ -5,6 +5,7 @@ var _bodyParser = _interopRequireDefault(require("body-parser"));
 var _cors = _interopRequireDefault(require("cors"));
 var _express = _interopRequireDefault(require("express"));
 var _dotenv = _interopRequireDefault(require("dotenv"));
+var _path = _interopRequireDefault(require("path"));
 var _connectdb = _interopRequireDefault(require("./config/connectdb.js"));
 var _web = _interopRequireDefault(require("./routes/web.js"));
 var _models = _interopRequireDefault(require("./models"));
@@ -24,6 +25,9 @@ _dotenv["default"].config();
 var app = (0, _express["default"])();
 app.use((0, _cors["default"])({
   origin: true
+}));
+app.use("/product-images", _express["default"]["static"](_path["default"].resolve(process.cwd(), "public", "product-images"), {
+  maxAge: "1d"
 }));
 app.use(_bodyParser["default"].json({
   limit: "25mb"

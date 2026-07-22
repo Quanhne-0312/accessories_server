@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "nodemon --exec babel-node src/server",
         "seed:products": "node scripts/seed-products-by-category.js",
+        "sync:product-images": "node scripts/sync-product-images.js",
         "build": "babel src -d build --copy-files",
         "prestart": "npm run build",
         "start": "node build/server.js"
